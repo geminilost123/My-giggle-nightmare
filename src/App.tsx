@@ -1391,7 +1391,7 @@ export default function App() {
   const storyboardFrames = activeThread ? activeThread.messages.filter(m => m.type === 'storyboard') : [];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden select-none bg-[#1a1a2e] text-[#f0ece4]">
+    <div className="flex h-[100dvh] h-screen w-screen overflow-hidden select-none bg-[#1a1a2e] text-[#f0ece4]">
       {/* File Upload hidden triggers */}
       <input
         type="file"
@@ -1423,7 +1423,7 @@ export default function App() {
       />
 
       {/* Central View Sandbox Panel */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         {/* Navigation Core Header Header */}
         <header className="flex justify-between items-center p-3 border-b border-white/5 bg-[#1a1a2e] relative z-25">
           <div className="flex items-center gap-2 max-w-xs md:max-w-xl">
