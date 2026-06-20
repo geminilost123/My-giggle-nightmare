@@ -143,7 +143,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
   };
 
   return (
-    <div className={`p-4 border-t shrink-0 w-full overflow-hidden transition-colors duration-300 ${
+    <div className={`p-4 pb-[calc(1.2rem+env(safe-area-inset-bottom,0px))] md:pb-4 border-t shrink-0 w-full overflow-hidden transition-colors duration-300 ${
       mode === 'image' || mode === 'edit'
         ? 'border-[#c47a8a]/20 bg-[#1a1a2e]/95'
         : mode === 'video'
