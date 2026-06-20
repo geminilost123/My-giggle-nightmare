@@ -23,6 +23,7 @@ export interface HistoryItem {
 export interface Character {
   name: string;
   desc: string;
+  imageUrl?: string;
 }
 
 export interface StorySetup {

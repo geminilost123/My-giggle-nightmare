@@ -1381,6 +1381,14 @@ export default function App() {
     }
   };
 
+  const handleUpdateCharacterImage = (index: number, imageUrl: string) => {
+    const castList = [...(cast || [])];
+    if (castList[index]) {
+      castList[index].imageUrl = imageUrl;
+      updateCurrentThread(t => ({ ...t, cast: castList }));
+    }
+  };
+
   const handleDeleteCharacter = (index: number) => {
     const castList = [...(cast || [])];
     castList.splice(index, 1);
@@ -1445,6 +1453,28 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Story Campaign Setup */}
+            <button
+              onClick={() => {
+                setActiveModal('setup');
+              }}
+              className="p-1.5 rounded-lg border bg-[#252538] border-white/5 text-[#9a96a8] hover:text-[#f0ece4] hover:bg-[#2e2e48] transition-colors cursor-pointer"
+              title="Story campaign scenario setup / premise"
+            >
+              <BookOpen size={15} />
+            </button>
+
+            {/* Casting & Characters */}
+            <button
+              onClick={() => {
+                setActiveModal('cast');
+              }}
+              className="p-1.5 rounded-lg border bg-[#252538] border-white/5 text-[#9a96a8] hover:text-[#f0ece4] hover:bg-[#2e2e48] transition-colors cursor-pointer"
+              title="Casting sheets & character profiles"
+            >
+              <Users size={15} />
+            </button>
+
             {/* Quick Storyboard Toggles Direct Access */}
             <button
               onClick={() => {
@@ -1800,6 +1830,7 @@ export default function App() {
         cast={cast}
         onAddCharacter={handleAddCharacter}
         onUpdateCharacterDesc={handleUpdateCharacterDesc}
+        onUpdateCharacterImage={handleUpdateCharacterImage}
         onDeleteCharacter={handleDeleteCharacter}
         onHelpWriteCharacter={handleCharacterAutoHelp}
         setup={currentSetup}

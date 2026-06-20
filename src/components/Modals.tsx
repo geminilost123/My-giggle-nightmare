@@ -50,6 +50,7 @@ interface ModalsProps {
   cast: Character[];
   onAddCharacter: (char: Character) => void;
   onUpdateCharacterDesc: (index: number, desc: string) => void;
+  onUpdateCharacterImage: (index: number, imageUrl: string) => void;
   onDeleteCharacter: (index: number) => void;
   onHelpWriteCharacter: (index: number, name: string, desc: string, onUpdate: (val: string) => void) => Promise<void>;
 
@@ -101,6 +102,7 @@ export const Modals: React.FC<ModalsProps> = ({
   cast,
   onAddCharacter,
   onUpdateCharacterDesc,
+  onUpdateCharacterImage,
   onDeleteCharacter,
   onHelpWriteCharacter,
   setup,
@@ -194,6 +196,7 @@ export const Modals: React.FC<ModalsProps> = ({
           cast={cast}
           onAddCharacter={onAddCharacter}
           onUpdateCharacterDesc={onUpdateCharacterDesc}
+          onUpdateCharacterImage={onUpdateCharacterImage}
           onDeleteCharacter={onDeleteCharacter}
           onHelpWriteCharacter={onHelpWriteCharacter}
         />
@@ -899,19 +902,22 @@ const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStory
 };
 
 // CAST SHEETS MODAL
-const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onDeleteCharacter, onHelpWriteCharacter }: any) => {
+const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteCharacter }: any) => {
   const [characterName, setCharacterName] = useState('');
   const [characterDesc, setCharacterDesc] = useState('');
+  const [newCharacterImage, setNewCharacterImage] = useState('');
   const [isCastingHelp, setIsCastingHelp] = useState<number | null>(null);
 
   const handleAdd = () => {
     if (!characterName.trim()) return alert('Please enter a character name');
     onAddCharacter({
       name: characterName.trim(),
-      desc: characterDesc.trim()
+      desc: characterDesc.trim(),
+      imageUrl: newCharacterImage.trim() || undefined
     });
     setCharacterName('');
     setCharacterDesc('');
+    setNewCharacterImage('');
   };
 
   const executeHelpOnCast = async (idx: number, name: string) => {
@@ -934,7 +940,7 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
           </button>
         </div>
         <p className="text-xs text-[#9a96a8] -mt-2 leading-relaxed">
-          Characters for the current story are saved here. Tweak description details any time to guide future generated frames.
+          Characters for the current story are saved here. Optional visual references are kept local to keep consistent generated frames.
         </p>
 
         {/* Existing List */}
@@ -945,30 +951,82 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
             </div>
           ) : (
             cast.map((c: any, i: number) => (
-              <div key={i} className="bg-[#1a1a2e]/50 border border-white/5 rounded-xl p-3 flex flex-col gap-2 relative group">
-                <div className="flex justify-between items-center text-xs font-semibold text-[#c9b8e8]">
-                  <span>{c.name}</span>
-                  <button
-                    onClick={() => onDeleteCharacter(i)}
-                    className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Remove from cast"
-                  >
-                    <Trash2 size={11} />
-                  </button>
+              <div key={i} className="bg-[#1a1a2e]/50 border border-white/5 rounded-xl p-3 flex gap-3 relative group">
+                {/* Image Avatar & Selector */}
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                  <label className="relative w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-[#252538] flex items-center justify-center cursor-pointer hover:border-[#c9b8e8]/50 transition-all group/avatar">
+                    {c.imageUrl ? (
+                      <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <Users size={16} className="text-[#9a96a8]/40" />
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                      <span className="text-[9px] font-bold text-white uppercase text-center leading-tight">Pick<br />Pic</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result) {
+                              onUpdateCharacterImage(i, event.target.result as string);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  {c.imageUrl && (
+                    <button
+                      onClick={() => onUpdateCharacterImage(i, '')}
+                      className="text-[9px] text-[#c47a8a] bg-red-950/25 hover:bg-red-950/50 p-0.5 px-1.5 rounded transition-colors"
+                      title="Clear image"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
-                <textarea
-                  value={c.desc}
-                  onChange={(e) => onUpdateCharacterDesc(i, e.target.value)}
-                  placeholder="Describe details (sex, age, eye color, features, style...)"
-                  className="w-full bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-xs text-[#f0ece4] outline-none resize-none h-16 focus:border-[#c9b8e8]"
-                />
-                <button
-                  disabled={isCastingHelp !== null}
-                  onClick={() => executeHelpOnCast(i, c.name)}
-                  className="self-start text-[10px] text-[#c9b8e8] bg-[#c9b8e8]/10 hover:bg-[#c9b8e8]/20 flex items-center gap-1 p-1 px-2.5 rounded transition-all font-medium disabled:opacity-50 cursor-pointer"
-                >
-                  <Sparkles size={10} /> {isCastingHelp === i ? 'Writing...' : 'Help Describe'}
-                </button>
+
+                {/* Info Right */}
+                <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                  <div className="flex justify-between items-center text-xs font-semibold text-[#c9b8e8]">
+                    <span className="truncate">{c.name}</span>
+                    <button
+                      onClick={() => onDeleteCharacter(i)}
+                      className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      title="Remove from cast"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                  <textarea
+                    value={c.desc}
+                    onChange={(e) => onUpdateCharacterDesc(i, e.target.value)}
+                    placeholder="Describe details (sex, age, eye color, features, style...)"
+                    className="w-full bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-xs text-[#f0ece4] outline-none resize-none h-14 focus:border-[#c9b8e8]"
+                  />
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <button
+                      disabled={isCastingHelp !== null}
+                      onClick={() => executeHelpOnCast(i, c.name)}
+                      className="text-[10px] text-[#c9b8e8] bg-[#c9b8e8]/10 hover:bg-[#c9b8e8]/20 flex items-center gap-1 p-1 px-2.5 rounded transition-all font-medium disabled:opacity-50 cursor-pointer flex-shrink-0"
+                    >
+                      <Sparkles size={10} /> {isCastingHelp === i ? 'Writing...' : 'Help Describe'}
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="Paste Image URL..."
+                      value={c.imageUrl || ''}
+                      onChange={(e) => onUpdateCharacterImage(i, e.target.value)}
+                      className="flex-1 bg-[#1a1a2e] border border-white/5 rounded p-1 px-2 text-[10px] text-[#9a96a8] placeholder-[#9a96a8]/30 outline-none focus:border-[#c9b8e8]"
+                    />
+                  </div>
+                </div>
               </div>
             ))
           )}
@@ -977,13 +1035,60 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
         {/* Form Container */}
         <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
           <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest">Add Character Manually</span>
-          <input
-            type="text"
-            placeholder="Name (e.g. Maya)"
-            value={characterName}
-            onChange={(e) => setCharacterName(e.target.value)}
-            className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
-          />
+          <div className="flex gap-3 items-start">
+            <div className="flex flex-col items-center gap-1">
+              <label className="relative w-12 h-12 rounded-xl border border-dashed border-white/15 hover:border-[#c9b8e8]/50 overflow-hidden bg-[#252538] flex items-center justify-center cursor-pointer flex-shrink-0 transition-all group/newavatar">
+                {newCharacterImage ? (
+                  <img src={newCharacterImage} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-[9px] text-[#9a96a8]/50 font-bold uppercase text-center leading-none">+ Pic</span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        if (event.target?.result) {
+                          setNewCharacterImage(event.target.result as string);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
+              {newCharacterImage && (
+                <button
+                  onClick={() => setNewCharacterImage('')}
+                  className="text-[9px] text-[#c47a8a] hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 flex flex-col gap-2">
+              <input
+                type="text"
+                placeholder="Name (e.g. Maya)"
+                value={characterName}
+                onChange={(e) => setCharacterName(e.target.value)}
+                className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
+              />
+              <input
+                type="text"
+                placeholder="Image URL (optional)"
+                value={newCharacterImage}
+                onChange={(e) => setNewCharacterImage(e.target.value)}
+                className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-[10px] text-[#9a96a8] outline-none focus:border-[#c9b8e8]"
+              />
+            </div>
+          </div>
+
           <textarea
             placeholder="Brief profile note..."
             value={characterDesc}
