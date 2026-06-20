@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ModelRegistryEntry, MODEL_REGISTRY } from '../api';
 import {
-  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye
+  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye, MessageSquare, Wand2
 } from 'lucide-react';
 
 interface InputControlsProps {
@@ -60,6 +60,10 @@ interface InputControlsProps {
 
   // Cost string
   costEstimate: string;
+
+  // Prompt Engineer State
+  promptEngineerMode: boolean;
+  onTogglePromptEngineerMode: (val: boolean) => void;
 }
 
 export const InputControls: React.FC<InputControlsProps> = ({
@@ -105,7 +109,9 @@ export const InputControls: React.FC<InputControlsProps> = ({
   editModel,
   onChangeEditModel,
   onUploadClick,
-  costEstimate
+  costEstimate,
+  promptEngineerMode,
+  onTogglePromptEngineerMode
 }) => {
   const [styleExpanded, setStyleExpanded] = useState(false);
   const [localStyle, setLocalStyle] = useState(lockedStyle);
@@ -509,6 +515,92 @@ export const InputControls: React.FC<InputControlsProps> = ({
         </div>
       )}
 
+      {/* Mode Selectors & PE Toggle Row */}
+      <div className="flex items-center gap-2 mb-2 px-1">
+        {/* Story Chat */}
+        <button
+          onClick={() => {
+            onModeChange('chat');
+            onTogglePromptEngineerMode(false);
+          }}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border cursor-pointer select-none ${
+            mode === 'chat' && !promptEngineerMode
+              ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]'
+              : 'bg-[#252538]/50 text-[#9a96a8] border-white/5 hover:text-[#f0ece4] hover:bg-[#252538]/80'
+          }`}
+          title="Story Chat Mode"
+        >
+          <MessageSquare size={16} />
+        </button>
+
+        {/* T2I Image */}
+        <button
+          onClick={() => {
+            onModeChange(mode === 'image' ? 'chat' : 'image');
+            onTogglePromptEngineerMode(false);
+          }}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border cursor-pointer select-none ${
+            mode === 'image' && !promptEngineerMode
+              ? 'bg-[#c47a8a]/20 text-[#c47a8a] border-[#c47a8a]/30 shadow-[0_0_10px_rgba(196,122,138,0.1)]'
+              : 'bg-[#252538]/50 text-[#9a96a8] border-white/5 hover:text-[#f0ece4] hover:bg-[#252538]/80'
+          }`}
+          title="Image Design Mode"
+        >
+          <Image size={16} />
+        </button>
+
+        {/* T2V Video */}
+        <button
+          onClick={() => {
+            onModeChange(mode === 'video' ? 'chat' : 'video');
+            onTogglePromptEngineerMode(false);
+          }}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border cursor-pointer select-none ${
+            mode === 'video' && !promptEngineerMode
+              ? 'bg-[#64b4ff]/20 text-[#64b4ff] border-[#64b4ff]/30 shadow-[0_0_10px_rgba(100,180,255,0.1)]'
+              : 'bg-[#252538]/50 text-[#9a96a8] border-white/5 hover:text-[#f0ece4] hover:bg-[#252538]/80'
+          }`}
+          title="Video Motion Mode"
+        >
+          <Video size={16} />
+        </button>
+
+        {/* Detail Enhancer */}
+        <button
+          onClick={() => {
+            onModeChange(mode === 'enhance' ? 'chat' : 'enhance');
+            onTogglePromptEngineerMode(false);
+          }}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border cursor-pointer select-none ${
+            mode === 'enhance' && !promptEngineerMode
+              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+              : 'bg-[#252538]/50 text-[#9a96a8] border-white/5 hover:text-[#f0ece4] hover:bg-[#252538]/80'
+          }`}
+          title="Detail Enhancer Mode"
+        >
+          <Sparkles size={16} />
+        </button>
+
+        {/* Prompt Architect PE Button */}
+        <button
+          onClick={() => {
+            const nextVal = !promptEngineerMode;
+            onTogglePromptEngineerMode(nextVal);
+            if (nextVal) {
+              onModeChange('chat'); // Reset active gen mode so text chat is routed to PE
+            }
+          }}
+          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border cursor-pointer select-none ${
+            promptEngineerMode
+              ? 'bg-[#c9b8e8]/25 text-[#bfadff] border-[#bfadff]/40 shadow-glow'
+              : 'bg-[#252538]/50 text-[#9a96a8] border-white/5 hover:text-[#f0ece4] hover:bg-[#252538]/80'
+          }`}
+          title="Prompt Architect Mode"
+        >
+          <Wand2 size={16} />
+        </button>
+      </div>
+
       {/* Primary Action Input Row */}
       <div className="flex items-end gap-2.5 bg-[#252538] border border-white/10 rounded-2xl p-2 pl-3">
         {mode === 'enhance' ? (
@@ -528,45 +620,6 @@ export const InputControls: React.FC<InputControlsProps> = ({
         )}
 
         <div className="flex items-center gap-1.5 shrink-0 mb-0.5">
-          {/* T2I Toggle Button */}
-          <button
-            onClick={() => onModeChange(mode === 'image' ? 'chat' : 'image')}
-            className={`p-2 rounded-full cursor-pointer transition-all ${
-              mode === 'image'
-                ? 'bg-[#c47a8a]/20 text-[#c47a8a]'
-                : 'text-[#9a96a8] hover:text-[#f0ece4]'
-            }`}
-            title="Image Mode"
-          >
-            <Image size={18} />
-          </button>
-
-          {/* Video Toggle Button */}
-          <button
-            onClick={() => onModeChange(mode === 'video' ? 'chat' : 'video')}
-            className={`p-2 rounded-full cursor-pointer transition-all ${
-              mode === 'video'
-                ? 'bg-[#64b4ff]/20 text-[#64b4ff]'
-                : 'text-[#9a96a8] hover:text-[#f0ece4]'
-            }`}
-            title="Video Render Mode"
-          >
-            <Video size={18} />
-          </button>
-
-          {/* Enhancers Toggle Button */}
-          <button
-            onClick={() => onModeChange(mode === 'enhance' ? 'chat' : 'enhance')}
-            className={`p-2 rounded-full cursor-pointer transition-all ${
-              mode === 'enhance'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'text-[#9a96a8] hover:text-[#f0ece4]'
-            }`}
-            title="Detail Enhancers"
-          >
-            <Sparkles size={18} />
-          </button>
-
           {/* Send Action Button */}
           {mode !== 'enhance' && (
             <button

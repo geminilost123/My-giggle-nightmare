@@ -1445,22 +1445,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Prompt Builder PE Activation Button */}
-            <button
-              onClick={() => {
-                const turn = !promptEngineerMode;
-                setPromptEngineerMode(turn);
-                if (turn) setMode('chat');
-              }}
-              className={`p-1.5 px-3 rounded-full text-[11px] font-bold tracking-wider transition-all cursor-pointer ${
-                promptEngineerMode
-                  ? 'bg-[#c9b8e8]/20 text-[#c9b8e8] border border-[#c9b8e8]/30 shadow-glow'
-                  : 'bg-[#252538] text-[#9a96a8] border border-white/5 hover:text-[#f0ece4]'
-              }`}
-            >
-              ✦ PE {promptEngineerMode && 'ON'}
-            </button>
-
             {/* Quick Storyboard Toggles Direct Access */}
             <button
               onClick={() => {
@@ -1661,6 +1645,8 @@ export default function App() {
           onChangeEditModel={setEditModel}
           onUploadClick={handleRegisterUpload}
           costEstimate={costStr}
+          promptEngineerMode={promptEngineerMode}
+          onTogglePromptEngineerMode={setPromptEngineerMode}
         />
 
         {/* Prompt Engineer - Glassmorphic Floating Action Dock */}
