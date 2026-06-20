@@ -1,0 +1,6 @@
+{
+  "name": "Zaor Studio",
+  "description": "Private creative studio for generative imaging, video, and roleplay storytelling",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
