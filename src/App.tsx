@@ -19,7 +19,7 @@ import {
 } from './data';
 import {
   Sparkles, Menu, ShieldAlert, Key, Library, Dna, Settings, Users,
-  BookOpen, Save, Cpu, RefreshCw, X, Check, HelpCircle
+  BookOpen, Save, Cpu, RefreshCw, X, Check, HelpCircle, Trash2
 } from 'lucide-react';
 
 export default function App() {
@@ -320,6 +320,9 @@ export default function App() {
 
     // Append User Card segment
     const newUserMsg: Message = { role: 'user', type: 'text', content: rawText };
+    if (promptEngineerMode) {
+      newUserMsg.isPe = true;
+    }
     updateCurrentThread(t => ({
       ...t,
       messages: [...t.messages, newUserMsg],
@@ -417,6 +420,9 @@ export default function App() {
     const reply = data.choices?.[0]?.message?.content || '(Empty Response)';
 
     const assistCard: Message = { role: 'assistant', type: 'text', content: reply };
+    if (promptEngineerMode) {
+      assistCard.isPe = true;
+    }
     updateCurrentThread(t => ({
       ...t,
       messages: [...t.messages, assistCard],
@@ -1057,7 +1063,7 @@ export default function App() {
     setIsLoading(true);
     try {
       const systemGuide = PE_SYSTEM_PROMPTS[peSelectedModel] || PE_SYSTEM_PROMPTS.aurora;
-      const sysPrompt = systemGuide + "\n\nOutput only the compiled optimized prompts in this exact format:\nBEST: <optimized results sentence>\nRUNNER-UP: <slightly different variant take>";
+      const sysPrompt = systemGuide + "\n\nOutput only the compiled optimized prompt in this exact format:\nBEST: <optimized results sentence>";
 
       const cleanHist = activeThread.history.map(h => ({ role: h.role, content: h.content }));
 
@@ -1066,7 +1072,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
           model: keys.chatModel || 'grok-beta',
-          messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST and RUNNER-UP pairs immediately.' }],
+          messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
           temperature: 0.6,
           max_tokens: 500
         })
@@ -1076,17 +1082,17 @@ export default function App() {
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content || '';
 
-      const bestMatch = content.match(/BEST:\s*([\s\S]*?)(?=\nRUNNER[\s-]?UP:|$)/i);
-      const runnerMatch = content.match(/RUNNER[\s-]?UP:\s*([\s\S]*)$/i);
-
-      const best = bestMatch ? bestMatch[1].trim() : '';
-      const runner = runnerMatch ? runnerMatch[1].trim() : '';
+      const bestMatch = content.match(/BEST:\s*([\s\S]*)$/i) || content.match(/BEST:\s*([\s\S]*?)(?=\n|$)/i);
+      let best = bestMatch ? bestMatch[1].trim() : '';
+      if (!best && content) {
+        best = content.replace(/BEST:/i, '').trim();
+      }
 
       if (best) {
         const textCard: Message = {
           role: 'assistant',
           type: 'text',
-          content: `🎯 **Prompt Engineering finalized optimized targets!**\n\n**BEST**:\n\`\`\`\n${best}\n\`\`\`\n\n**RUNNER-UP**:\n\`\`\`\n${runner || 'No runner-up generated.'}\n\`\`\``
+          content: `🎯 **Prompt Engineering Finalized Optimized Target!**\n\n\`\`\`\n${best}\n\`\`\``
         };
         updateCurrentThread(t => ({ ...t, messages: [...t.messages, textCard] }));
       }
@@ -1557,66 +1563,11 @@ export default function App() {
           </div>
         </header>
 
-        {/* Prompt Engineer Prompt Builder Subpanel */}
-        {promptEngineerMode && (
-          <div className="bg-[#252538]/70 border-b border-white/5 p-3 flex flex-col gap-2 z-10 animate-in slide-in-from-top-3 duration-150">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest flex items-center gap-1.5">
-                <Sparkles size={11} /> Prompt Architect Context Drawer
-              </span>
-              <button
-                onClick={handleFinalizePromptEng}
-                disabled={isLoading}
-                className="p-1 px-3 bg-[#c9b8e8] text-[#1a1a2e] rounded-lg text-xs font-bold hover:bg-[#c9b8e8]/90 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                ✅ Finalize Prompts
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] text-[#9a96a8] uppercase font-bold">Target Synthesis Model</span>
-                <select
-                  value={peSelectedModel}
-                  onChange={(e) => setPeSelectedModel(e.target.value)}
-                  className="bg-[#1a1a2e] border border-white/5 rounded-lg p-1.5 text-xs text-[#9a96a8]"
-                >
-                  <option value="aurora">Flux/Aurora Image</option>
-                  <option value="zimage">Z-Image (No-Negatives)</option>
-                  <option value="wan26t2v">Wan 2.6 Image</option>
-                  <option value="seedance15t2v">Seedance T2V</option>
-                  <option value="aurora_i2v">Aurora Video (I2V)</option>
-                  <option value="ltx23">Lightricks LTX 2.3 Video (With Audio)</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-0.5 justify-center">
-                <span className="text-[9px] text-[#9a96a8] uppercase font-bold">Visual Sandbox anchor</span>
-                <div className="flex gap-2 items-center">
-                  <span className="text-xs text-[#9a96a8] truncate">
-                    {pinnedPeUrl ? `📌 Pinned: ${pinnedPeLabel || 'Asset'}` : 'No image anchor pinned'}
-                  </span>
-                  {pinnedPeUrl && (
-                    <button
-                      onClick={() => {
-                        setPinnedPeUrl(null);
-                        setPinnedPeType(null);
-                        setPinnedPeLabel(null);
-                      }}
-                      className="p-1 rounded text-[#c47a8a] bg-[#c47a8a]/5 hover:bg-[#c47a8a]/15 text-[10px] cursor-pointer"
-                    >
-                      Clear Pin
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Message logs panel */}
         <MessageFeed
           messages={activeThread ? activeThread.messages : []}
           isLoading={isLoading}
+          promptEngineerMode={promptEngineerMode}
           onRetryText={async () => {
             if (activeThread && activeThread.history.length > 0) {
               const lastUser = [...activeThread.history].reverse().find(h => h.role === 'user');
@@ -1711,6 +1662,108 @@ export default function App() {
           onUploadClick={handleRegisterUpload}
           costEstimate={costStr}
         />
+
+        {/* Prompt Engineer - Glassmorphic Floating Action Dock */}
+        {promptEngineerMode && (
+          <div className="absolute bottom-[92px] left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-2xl bg-[#1b1b2f]/85 backdrop-blur-xl border border-[#c9b8e8]/30 shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_15px_rgba(201,184,232,0.15)] rounded-2xl p-3 flex flex-col md:flex-row items-stretch md:items-center gap-3 z-30 animate-in fade-in slide-in-from-bottom-4 duration-200">
+            {/* Header Badge & Title */}
+            <div className="flex items-center justify-between md:justify-start gap-2 border-b md:border-b-0 md:border-r border-white/10 pb-2 md:pb-0 md:pr-3 shrink-0">
+              <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest flex items-center gap-1.5 bg-[#c9b8e8]/10 px-2.5 py-1 rounded-full border border-[#c9b8e8]/20">
+                <Sparkles size={11} className="text-[#c9b8e8] animate-pulse" /> Prompt Eng.
+              </span>
+              <button
+                onClick={() => setPromptEngineerMode(false)}
+                className="md:hidden text-white/40 hover:text-white/80 p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
+                title="Deactivate PE Mode"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Main Controls Grid */}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 text-xs items-center">
+              {/* Target Synthesis Selection */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1 text-[9px] text-[#9a96a8] uppercase font-bold tracking-wider">
+                  <span>Target Synthesis Model</span>
+                </div>
+                <select
+                  value={peSelectedModel}
+                  onChange={(e) => setPeSelectedModel(e.target.value)}
+                  className="bg-[#121222]/90 border border-white/10 focus:border-[#c9b8e8]/50 outline-none rounded-lg p-1.5 text-xs text-[#dcd7ec] hover:bg-[#121222]/100 transition-colors cursor-pointer"
+                >
+                  <option value="aurora">Flux/Aurora Image</option>
+                  <option value="zimage">Z-Image (No-Negatives)</option>
+                  <option value="wan26t2v">Wan 2.6 Image</option>
+                  <option value="seedance15t2v">Seedance T2V</option>
+                  <option value="aurora_i2v">Aurora Video (I2V)</option>
+                  <option value="ltx23">Lightricks LTX 2.3 Video (With Audio)</option>
+                </select>
+              </div>
+
+              {/* Visual Sandbox Anchor Context */}
+              <div className="flex flex-col gap-1 justify-center">
+                <span className="text-[9px] text-[#9a96a8] uppercase font-bold tracking-wider">Visual Anchor Context</span>
+                <div className="flex items-center gap-2 bg-[#121222]/55 border border-white/5 p-1.5 rounded-lg h-[34px]">
+                  {pinnedPeUrl ? (
+                    <>
+                      <div className="relative w-6 h-6 rounded overflow-hidden bg-black/40 border border-white/10 shrink-0 flex items-center justify-center">
+                        {pinnedPeType === 'video' ? (
+                          <div className="text-[8px] text-white">🎬</div>
+                        ) : (
+                          <img src={pinnedPeUrl} className="w-full h-full object-cover" alt="Anchor Preview" referrerPolicy="no-referrer" />
+                        )}
+                        <span className="absolute bottom-0 right-0 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      </div>
+                      <span className="text-[11px] text-[#c9b8e8] font-mono truncate max-w-[110px] md:max-w-[130px]" title={pinnedPeLabel || 'Asset'}>
+                        {pinnedPeLabel || 'Pinned Frame'}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setPinnedPeUrl(null);
+                          setPinnedPeType(null);
+                          setPinnedPeLabel(null);
+                        }}
+                        className="ml-auto p-1 text-white/40 hover:text-[#c47a8a] hover:bg-[#c47a8a]/10 rounded transition-all cursor-pointer"
+                        title="Clear Context Pin"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-white/40 italic flex items-center gap-1 pl-1">
+                      📌 No anchor (all roleplay text)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Finalizers */}
+            <div className="flex items-center gap-2 border-t md:border-t-0 border-white/10 pt-2 md:pt-0 shrink-0">
+              <button
+                onClick={handleFinalizePromptEng}
+                disabled={isLoading}
+                className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-[#c9b8e8] to-[#9a86cc] text-[#1a1a2e] rounded-xl text-xs font-bold hover:shadow-[0_0_12px_rgba(201,184,232,0.4)] hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <span className="animate-spin h-3.5 w-3.5 border-2 border-[#1a1a2e] border-t-transparent rounded-full" />
+                ) : (
+                  <span>🚀</span>
+                )}
+                <span>Finalize Architect</span>
+              </button>
+
+              <button
+                onClick={() => setPromptEngineerMode(false)}
+                className="hidden md:flex p-2 text-[#9a96a8] hover:text-[#f0ece4] hover:bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-all cursor-pointer"
+                title="Close PE Deck"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Campaign Dialog Overlays */}

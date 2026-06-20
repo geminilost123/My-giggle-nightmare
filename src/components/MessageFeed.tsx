@@ -8,6 +8,7 @@ import {
 interface MessageFeedProps {
   messages: Message[];
   isLoading: boolean;
+  promptEngineerMode?: boolean;
   onRetryText: () => void;
   onAnimateImage: (src: string, prompt: string, engine: string, duration: number, res: string) => Promise<void>;
   onEditImage: (prompt: string, src: string, model: string) => Promise<void>;
@@ -27,6 +28,7 @@ interface MessageFeedProps {
 export const MessageFeed: React.FC<MessageFeedProps> = ({
   messages,
   isLoading,
+  promptEngineerMode = false,
   onRetryText,
   onAnimateImage,
   onEditImage,
@@ -55,28 +57,167 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
     );
   }
 
+  // Segment contiguous PE dialogue messages into group blocks
+  const groupedItems: { type: 'single' | 'pe_group'; messages: Message[] }[] = [];
+  let currentPeGroup: Message[] = [];
+
+  messages.forEach((m) => {
+    if (m.isPe) {
+      currentPeGroup.push(m);
+    } else {
+      if (currentPeGroup.length > 0) {
+        groupedItems.push({ type: 'pe_group', messages: currentPeGroup });
+        currentPeGroup = [];
+      }
+      groupedItems.push({ type: 'single', messages: [m] });
+    }
+  });
+
+  if (currentPeGroup.length > 0) {
+    groupedItems.push({ type: 'pe_group', messages: currentPeGroup });
+  }
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-6 scroll-smooth">
-      {messages.map((m, idx) => (
-        <MessageCard
-          key={idx}
-          m={m}
-          onRetryText={onRetryText}
-          onAnimateImage={onAnimateImage}
-          onEditImage={onEditImage}
-          styleLockActive={styleLockActive}
-          lockedStyle={lockedStyle}
-          onPinForPE={onPinForPE}
-          pinnedPeUrl={pinnedPeUrl}
-          activeTargetUrl={activeTargetUrl}
-          onSetEditTarget={onSetEditTarget}
-          onCloudSave={onCloudSave}
-          onGrabLastFrame={onGrabLastFrame}
-          onRetryVideo={onRetryVideo}
-          onSaveToFiles={onSaveToFiles}
-          isLoading={isLoading}
-        />
-      ))}
+      {groupedItems.map((item, groupIdx) => {
+        if (item.type === 'pe_group') {
+          // If this is the latest group, and active PE mode is enabled, let it default to expanded
+          const isLatestGroup = groupIdx === groupedItems.length - 1;
+          const isPeModeActive = isLatestGroup && promptEngineerMode;
+
+          return (
+            <PEMessageGroupCard
+              key={`pe_group_${groupIdx}`}
+              messages={item.messages}
+              isPeModeActive={isPeModeActive}
+              onRetryText={onRetryText}
+              onAnimateImage={onAnimateImage}
+              onEditImage={onEditImage}
+              styleLockActive={styleLockActive}
+              lockedStyle={lockedStyle}
+              onPinForPE={onPinForPE}
+              pinnedPeUrl={pinnedPeUrl}
+              activeTargetUrl={activeTargetUrl}
+              onSetEditTarget={onSetEditTarget}
+              onCloudSave={onCloudSave}
+              onGrabLastFrame={onGrabLastFrame}
+              onRetryVideo={onRetryVideo}
+              onSaveToFiles={onSaveToFiles}
+              isLoading={isLoading}
+            />
+          );
+        } else {
+          const m = item.messages[0];
+          return (
+            <MessageCard
+              key={`single_${groupIdx}`}
+              m={m}
+              onRetryText={onRetryText}
+              onAnimateImage={onAnimateImage}
+              onEditImage={onEditImage}
+              styleLockActive={styleLockActive}
+              lockedStyle={lockedStyle}
+              onPinForPE={onPinForPE}
+              pinnedPeUrl={pinnedPeUrl}
+              activeTargetUrl={activeTargetUrl}
+              onSetEditTarget={onSetEditTarget}
+              onCloudSave={onCloudSave}
+              onGrabLastFrame={onGrabLastFrame}
+              onRetryVideo={onRetryVideo}
+              onSaveToFiles={onSaveToFiles}
+              isLoading={isLoading}
+            />
+          );
+        }
+      })}
+    </div>
+  );
+};
+
+// Collapsible Group Wrapper for prompt engineering dialogues
+const PEMessageGroupCard = ({
+  messages,
+  isPeModeActive,
+  onRetryText,
+  onAnimateImage,
+  onEditImage,
+  styleLockActive,
+  lockedStyle,
+  onPinForPE,
+  pinnedPeUrl,
+  activeTargetUrl,
+  onSetEditTarget,
+  onCloudSave,
+  onGrabLastFrame,
+  onRetryVideo,
+  onSaveToFiles,
+  isLoading
+}: any) => {
+  const [isOpen, setIsOpen] = useState<boolean>(isPeModeActive);
+
+  // Auto-expand latest active interaction when entering the PE mode
+  React.useEffect(() => {
+    if (isPeModeActive) {
+      setIsOpen(true);
+    }
+  }, [isPeModeActive]);
+
+  return (
+    <div className="w-full max-w-[95%] my-1 self-stretch border border-[#bfadff]/20 bg-[#121222]/30 rounded-2xl p-2.5 flex flex-col transition-all duration-300">
+      {/* Interactive Title Header Bar */}
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between gap-3 cursor-pointer py-2 px-3 bg-[#1e1e30]/75 hover:bg-[#25253e]/85 hover:border-[#c1b5db]/30 rounded-xl border border-white/5 transition-all text-xs select-none"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#c9b8e8]/20 flex items-center justify-center border border-[#bfadff]/40">
+            <Sparkles size={8} className="text-[#bfadff]" />
+          </div>
+          <span className="font-sans font-semibold tracking-wide text-[#c9b8e8]">
+            Prompt Architect Design Log
+          </span>
+          <span className="text-[#9a96a8] text-[9.5px] font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded-full">
+            {messages.length} interaction{messages.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-white/40 font-mono hidden sm:inline text-[9px] uppercase tracking-wider">
+            {isOpen ? 'Minimize path' : 'Inspect path'}
+          </span>
+          <ChevronRight
+            size={14}
+            className={`transform transition-transform duration-200 text-[#bfadff] ${
+              isOpen ? 'rotate-90' : 'rotate-0'
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* Expandable chat dialogues list */}
+      {isOpen && (
+        <div className="flex flex-col gap-4 mt-3 pl-3 border-l-2 border-[#bfadff]/20 ml-2 animate-in fade-in slide-in-from-top-2 duration-150">
+          {messages.map((m: any, idx: number) => (
+            <MessageCard
+              key={idx}
+              m={m}
+              onRetryText={onRetryText}
+              onAnimateImage={onAnimateImage}
+              onEditImage={onEditImage}
+              styleLockActive={styleLockActive}
+              lockedStyle={lockedStyle}
+              onPinForPE={onPinForPE}
+              pinnedPeUrl={pinnedPeUrl}
+              activeTargetUrl={activeTargetUrl}
+              onSetEditTarget={onSetEditTarget}
+              onCloudSave={onCloudSave}
+              onGrabLastFrame={onGrabLastFrame}
+              onRetryVideo={onRetryVideo}
+              onSaveToFiles={onSaveToFiles}
+              isLoading={isLoading}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -12,6 +12,7 @@ export interface Message {
   videoPrompt?: string;
   reason?: string;
   frameId?: string;
+  isPe?: boolean;
 }
 
 export interface HistoryItem {
