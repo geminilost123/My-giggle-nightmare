@@ -1391,7 +1391,7 @@ export default function App() {
   const storyboardFrames = activeThread ? activeThread.messages.filter(m => m.type === 'storyboard') : [];
 
   return (
-    <div className="flex h-[100dvh] h-screen w-screen overflow-hidden select-none bg-[#1a1a2e] text-[#f0ece4]">
+    <div className="flex h-full w-full overflow-hidden select-none bg-[#1a1a2e] text-[#f0ece4]">
       {/* File Upload hidden triggers */}
       <input
         type="file"
