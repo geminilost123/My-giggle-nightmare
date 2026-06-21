@@ -122,8 +122,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   </div>
 
-                  {/* Actions (visible on hover) */}
-                  <div className="absolute right-2 top-1.5 bottom-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-[#14142a] via-[#14142a]/95 to-transparent pl-4 pr-1">
+                  {/* Actions (visible on hover on desktop, always visible on mobile) */}
+                  <div className="absolute right-2 top-1.5 bottom-1.5 flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-gradient-to-l from-[#14142a] via-[#14142a]/95 to-transparent pl-4 pr-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

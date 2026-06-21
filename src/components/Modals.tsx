@@ -91,6 +91,7 @@ export const Modals: React.FC<ModalsProps> = ({
   loras,
   onAddLora,
   onToggleLora,
+  onToggleAllLoras,
   onUpdateLoraScale,
   onDeleteLora,
   onImportLoras,
@@ -169,7 +170,7 @@ export const Modals: React.FC<ModalsProps> = ({
           loras={loras}
           onAddLora={onAddLora}
           onToggleLora={onToggleLora}
-          onToggleAllLoras={props.onToggleAllLoras}
+          onToggleAllLoras={onToggleAllLoras}
           onUpdateLoraScale={onUpdateLoraScale}
           onDeleteLora={onDeleteLora}
           onImportLoras={onImportLoras}
@@ -686,7 +687,7 @@ const PromptLibraryModal = ({ Overlay, onClose, userPrompts, onSaveUserPrompt, o
                           onDeleteUserPrompt(item.id);
                         }
                       }}
-                      className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-pointer"
                     >
                       <Trash2 size={10} />
                     </button>
@@ -726,6 +727,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
   const [loraNotes, setLoraNotes] = useState('');
   const [loraBase, setLoraBase] = useState('Flux');
   const [loraScale, setLoraScale] = useState(1);
+  const [copied, setCopied] = useState(false);
 
   const activeCount = loras.filter((l: any) => l.active).length;
 
@@ -746,21 +748,66 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
     setLoraScale(1);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!loras.length) return alert('No LoRAs to export');
-    const txt = JSON.stringify(loras);
+    const txt = JSON.stringify(loras, null, 2);
+    const filename = `zaor_loras_backup_${new Date().toISOString().slice(0,10)}.json`;
+    
     try {
-      navigator.clipboard.writeText(txt);
-      alert('LoRA setup backup has been copied to clipboard!');
-    } catch (e) {
-      window.prompt('Select all and copy your LoRA back-up string:', txt);
+      const file = new File([txt], filename, { type: 'text/plain' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'LoRA Backup',
+        });
+      } else if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'JSON Backup',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(txt);
+        await writable.close();
+      } else {
+        const blob = new Blob([txt], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Save failed:', e);
+      }
+      return; 
     }
+    
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleImport = () => {
-    const raw = window.prompt('Paste your LoRA backup JSON string here:');
-    if (!raw) return;
-    onImportLoras(raw);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const raw = re.target?.result as string;
+        if (raw) onImportLoras(raw);
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   return (
@@ -794,11 +841,11 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
             </button>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleExport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer">
-              <Download size={11} /> Back Up
+            <button onClick={handleExport} className={`p-1 px-2.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors ${copied ? 'bg-green-500/20 text-green-400' : 'bg-[#1a1a2e]/60 text-[#f0ece4]'}`}>
+              {copied ? <Check size={11} /> : <Download size={11} />} {copied ? 'Saved' : 'Save Config'}
             </button>
             <button onClick={handleImport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer">
-              <Upload size={11} /> Restore
+              <Upload size={11} /> Load Config
             </button>
           </div>
         </div>
@@ -845,7 +892,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
                 </div>
                 <button
                   onClick={() => onDeleteLora(l.id)}
-                  className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 cursor-pointer opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 size={12} />
                 </button>
@@ -1057,7 +1104,7 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                     ) : (
                       <Users size={16} className="text-[#9a96a8]/40" />
                     )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                    <div className="absolute inset-0 bg-black/60 opacity-100 md:opacity-0 md:group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
                       <span className="text-[9px] font-bold text-white uppercase text-center leading-tight">Pick<br />Pic</span>
                     </div>
                     <input
@@ -1095,7 +1142,7 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                     <span className="truncate">{c.name}</span>
                     <button
                       onClick={() => onDeleteCharacter(i)}
-                      className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-pointer"
                       title="Remove from cast"
                     >
                       <Trash2 size={11} />
@@ -1293,20 +1340,53 @@ const SaveLoadModal = ({ Overlay, onClose, onSerializeGame, onDeserializeGame }:
   const [code, setCode] = useState('');
   const [copyFeedback, setCopyFeedback] = useState(false);
 
-  const handleMakeCode = () => {
+  const handleMakeCode = async () => {
     const val = onSerializeGame();
     if (!val) {
       alert('Start a thread session before generating saves.');
       return;
     }
     setCode(val);
+    const filename = `zaor_game_backup_${new Date().toISOString().slice(0,10)}.txt`;
+    
     try {
-      navigator.clipboard.writeText(val);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
-    } catch (e) {
-      /* fallback text show */
+      const file = new File([val], filename, { type: 'text/plain' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Game State Backup',
+        });
+      } else if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'Text File',
+            accept: { 'text/plain': ['.txt'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(val);
+        await writable.close();
+      } else {
+        const blob = new Blob([val], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Save failed:', e);
+      }
+      return;
     }
+
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
   };
 
   const handleLoadCode = () => {
@@ -1317,6 +1397,31 @@ const SaveLoadModal = ({ Overlay, onClose, onSerializeGame, onDeserializeGame }:
     } catch (e: any) {
       alert('Load failure: ' + e.message);
     }
+  };
+
+  const handleLoadFromFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const val = re.target?.result as string;
+        if (val) {
+          setCode(val);
+          try {
+            onDeserializeGame(val.trim());
+            onClose();
+          } catch (err: any) {
+             alert('Load failure: ' + err.message);
+          }
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   return (
@@ -1336,9 +1441,13 @@ const SaveLoadModal = ({ Overlay, onClose, onSerializeGame, onDeserializeGame }:
 
         <button
           onClick={handleMakeCode}
-          className="w-full bg-[#c9b8e8]/10 hover:bg-[#c9b8e8]/20 border border-[#c9b8e8]/30 rounded-xl p-3 text-xs font-bold text-[#c9b8e8] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          className={`w-full border rounded-xl p-3 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+            copyFeedback 
+              ? 'bg-green-500/20 border-green-500/30 text-green-400' 
+              : 'bg-[#c9b8e8]/10 hover:bg-[#c9b8e8]/20 border-[#c9b8e8]/30 text-[#c9b8e8]'
+          }`}
         >
-          <Clipboard size={14} /> {copyFeedback ? '✓ Setup Copied to Clipboard' : '💾 Compile current Game → Copy Code'}
+          {copyFeedback ? <Check size={14} /> : <Save size={14} />} {copyFeedback ? 'Saved Game State to File' : 'Save Game State to File'}
         </button>
 
         <textarea
@@ -1350,16 +1459,16 @@ const SaveLoadModal = ({ Overlay, onClose, onSerializeGame, onDeserializeGame }:
 
         <div className="flex gap-2.5">
           <button
-            onClick={onClose}
-            className="flex-1 bg-[#2e2e48] text-[#9a96a8] rounded-xl p-2.5 text-xs font-semibold cursor-pointer"
+            onClick={handleLoadFromFile}
+            className="flex-1 bg-[#2e2e48] text-[#f0ece4] rounded-xl p-2.5 text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 hover:bg-[#2e2e48]/80 transition-colors"
           >
-            Cancel
+            <Upload size={14} /> Load File
           </button>
           <button
             onClick={handleLoadCode}
-            className="flex-1 bg-[#c9b8e8] text-[#1a1a2e] rounded-xl p-2.5 text-xs font-bold cursor-pointer"
+            className="flex-1 bg-[#c9b8e8] text-[#1a1a2e] flex items-center justify-center gap-1.5 rounded-xl p-2.5 text-xs font-bold cursor-pointer hover:bg-[#c9b8e8]/90 transition-colors"
           >
-            📂 Load Session Code
+            <Check size={14} /> Load Text
           </button>
         </div>
       </div>
