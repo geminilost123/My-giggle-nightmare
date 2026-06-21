@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Message } from '../types';
 import {
   Copy, Image, Video, Film, Trash, Sparkles, Send, Lock,
-  Unlock, HelpCircle, Check, Camera, RefreshCcw, Download, Cloud, ChevronRight, X
+  Unlock, HelpCircle, Check, Camera, RefreshCcw, Download, Cloud, ChevronRight, X, Loader2
 } from 'lucide-react';
 
 interface MessageFeedProps {
@@ -130,6 +130,20 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
           );
         }
       })}
+      
+      {isLoading && (
+        <div className="flex flex-col gap-1.5 p-4 rounded-xl border border-[#c47a8a]/20 bg-[#c47a8a]/5 text-[#c9b8e8]/80 max-w-[280px] self-start mr-auto anim-fade-in">
+          <div className="flex items-center gap-2 text-xs">
+            <Loader2 size={13} className="animate-spin text-[#c47a8a]" />
+            <span className="font-semibold tracking-wider text-[10px] uppercase text-[#c47a8a] flex items-center gap-1">
+              ✦ Zaor Active
+            </span>
+          </div>
+          <p className="text-xs text-[#9a96a8]/80 leading-relaxed font-sans font-light">
+            Crafting story arc or rendering media stream...
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -239,8 +253,12 @@ const MessageCard = ({
       </span>
 
       {/* Renders Based on Message Type */}
-      {m.type === 'text' && (
-        <TextMessage role={m.role} text={m.content} onRetry={onRetryText} />
+      {(m.type === 'text' || m.type === 'error') && (
+        <TextMessage 
+          role={m.role} 
+          text={m.type === 'error' ? `Error: ${m.content}` : m.content} 
+          onRetry={m.type === 'error' ? undefined : onRetryText} 
+        />
       )}
 
       {m.type === 'image' && (
@@ -272,6 +290,13 @@ const MessageCard = ({
           pinned={pinnedPeUrl === (m.hostedUrl || m.src)}
           isLoading={isLoading}
         />
+      )}
+
+      {m.type === 'error' && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm max-w-sm">
+          <strong className="block mb-1">Error</strong>
+          {m.content}
+        </div>
       )}
 
       {m.type === 'storyboard' && (
@@ -358,6 +383,7 @@ const ImageMessage: React.FC<{
 
   const [styleModel, setStyleModel] = useState('fluxkontext');
   const [cloudStatus, setCloudStatus] = useState('☁ Cloud');
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   return (
     <div className="flex flex-col gap-2 max-w-full">
@@ -392,11 +418,18 @@ const ImageMessage: React.FC<{
         </button>
         <button
           onClick={() => {
-            navigator.clipboard.writeText(alt).then(() => alert('Copied prompt ✓'));
+            navigator.clipboard.writeText(alt).then(() => {
+              setCopiedPrompt(true);
+              setTimeout(() => setCopiedPrompt(false), 2000);
+            });
           }}
-          className="px-3 py-1.5 rounded-full bg-[#252538] border border-white/10 hover:border-lavender text-dim hover:text-lavender transition-all cursor-pointer"
+          className={`px-3 py-1.5 rounded-full border transition-all cursor-pointer duration-200 ${
+            copiedPrompt
+              ? 'bg-[#c9b8e8]/20 border-[#c9b8e8] text-[#c9b8e8] font-bold scale-[0.98]'
+              : 'bg-[#252538] border-white/10 hover:border-lavender text-dim hover:text-lavender'
+          }`}
         >
-          📋 Copy prompt
+          {copiedPrompt ? '✓ Copied ✓' : '📋 Copy prompt'}
         </button>
         <button
           onClick={onPin}
@@ -538,7 +571,7 @@ const ImageMessage: React.FC<{
 const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, pinned, isLoading }: any) => {
   const [extendOpen, setExtendOpen] = useState(false);
   const [extPrompt, setExtPrompt] = useState('');
-  const [extEngine, setExtEngine] = useState('aurora');
+  const [extEngine, setExtEngine] = useState('aurora-extend');
   const [extDur, setExtDur] = useState(4);
   const [extRes, setExtRes] = useState('480p');
   const [cloudStatus, setCloudStatus] = useState('☁ Cloud');
@@ -633,9 +666,9 @@ const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, p
                 onChange={(e) => setExtEngine(e.target.value)}
                 className="bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px] text-[#c9b8e8]"
               >
-                <option value="aurora">Aurora Extend &middot; xAI — $0.05/s</option>
-                <option value="wan27extend">Wan 2.7 Extend — $0.30/s</option>
-                <option value="wan22spicy">Wan 2.2 Spicy — $0.15/s</option>
+                <option value="aurora-extend">Aurora Extend &middot; xAI — $0.05/s</option>
+                <option value="wan27-extend">Wan 2.7 Extend — $0.30/s</option>
+                <option value="wan22spicy-extend">Wan 2.2 Spicy — $0.15/s</option>
               </select>
 
               <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Duration:</span>
@@ -650,11 +683,12 @@ const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, p
               </select>
 
               <button
+                disabled={isLoading}
                 onClick={() => {
-                  onRetryVid(extPrompt || 'continue scene naturally', extEngine, extDur, extRes);
+                  onRetryVid(extPrompt || 'continue scene naturally', extEngine, extDur, extRes, m.src);
                   setExtendOpen(false);
                 }}
-                className="bg-[#64b4ff] hover:bg-[#64b4ff]/90 text-[#1a1a2e] px-4 py-1 rounded-full text-[11px] font-bold ml-auto cursor-pointer"
+                className={`bg-[#64b4ff] hover:bg-[#64b4ff]/90 text-[#1a1a2e] px-4 py-1 rounded-full text-[11px] font-bold ml-auto cursor-pointer ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Extend Clip ▶
               </button>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ModelRegistryEntry, MODEL_REGISTRY } from '../api';
 import {
-  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye, MessageSquare, Wand2
+  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye, MessageSquare, Wand2, Loader2
 } from 'lucide-react';
 
 interface InputControlsProps {
@@ -633,7 +633,11 @@ export const InputControls: React.FC<InputControlsProps> = ({
                   : 'bg-[#c9b8e8] text-[#1a1a2e]'
               } disabled:opacity-40 disabled:cursor-default`}
             >
-              <Send size={15} />
+              {isLoading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Send size={15} />
+              )}
             </button>
           )}
         </div>

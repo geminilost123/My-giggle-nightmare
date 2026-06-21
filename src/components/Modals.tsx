@@ -34,6 +34,7 @@ interface ModalsProps {
   loras: LoRA[];
   onAddLora: (newLora: Omit<LoRA, 'id' | 'active'>) => void;
   onToggleLora: (id: number, val: boolean) => void;
+  onToggleAllLoras: (active: boolean) => void;
   onUpdateLoraScale: (id: number, scale: number) => void;
   onDeleteLora: (id: number) => void;
   onImportLoras: (loraBackupJson: string) => void;
@@ -168,6 +169,7 @@ export const Modals: React.FC<ModalsProps> = ({
           loras={loras}
           onAddLora={onAddLora}
           onToggleLora={onToggleLora}
+          onToggleAllLoras={props.onToggleAllLoras}
           onUpdateLoraScale={onUpdateLoraScale}
           onDeleteLora={onDeleteLora}
           onImportLoras={onImportLoras}
@@ -259,6 +261,66 @@ export const Modals: React.FC<ModalsProps> = ({
 
 // ────────── INDIVIDUAL MODAL COMPONENTS ──────────
 
+// MODEL PRICING & CAPABILITY DATA
+const modelDetails: Record<string, { name: string; costIn: string; costOut: string; desc: string; cap: string }> = {
+  'grok-beta': {
+    name: 'Grok Beta (Standard)',
+    costIn: '$5.00',
+    costOut: '$15.00',
+    desc: 'Legacy Grok text model. Capable but has older pricing rates.',
+    cap: 'Balanced text generation, general tasks'
+  },
+  'grok-2-latest': {
+    name: 'Grok 2 (Latest Release)',
+    costIn: '$2.00',
+    costOut: '$10.00',
+    desc: 'Flagship Grok 2 model. Excellent at coding, long-context writing, and high-fidelity roleplay.',
+    cap: 'State-of-the-art language comprehension, coding, creative scenarios'
+  },
+  'grok-2': {
+    name: 'Grok 2',
+    costIn: '$2.00',
+    costOut: '$10.00',
+    desc: 'Standard production-grade Grok 2.',
+    cap: 'Reliable reasoning, high speed, structured parsing'
+  },
+  'grok-2-1212': {
+    name: 'Grok 2 (Dec 2024 Build)',
+    costIn: '$2.00',
+    costOut: '$10.00',
+    desc: 'Pinned version of Grok 2 from December 2024 Build.',
+    cap: 'Deterministic output testing, creative prose'
+  },
+  'grok-3-latest': {
+    name: 'Grok 3 (Latest Flagship)',
+    costIn: '$4.00',
+    costOut: '$16.00',
+    desc: 'The absolute state-of-the-art xAI reasoning model. Unmatched planning, logical depth, and complex lore parsing.',
+    cap: 'Advanced logical chains, complex world-building, highly detailed narration'
+  },
+  'grok-3': {
+    name: 'Grok 3 (Standard)',
+    costIn: '$4.00',
+    costOut: '$16.00',
+    desc: 'Standard production Grok 3 with peak intelligence and maximum context reasoning.',
+    cap: 'Deep lore coherence, highly creative and articulate dialogues'
+  },
+  'grok-3-mini': {
+    name: 'Grok 3 Mini',
+    costIn: '$0.55',
+    costOut: '$2.19',
+    desc: 'Incredibly fast and ultra-affordable lightweight model. High-speed responses at a fraction of the cost.',
+    cap: 'Blazing fast draft responses, extremely cost-effective testing'
+  },
+  'grok-4-latest': {
+    name: 'Grok 4 (Preview)',
+    costIn: 'TBD',
+    costOut: 'TBD',
+    desc: 'Experimental next-generation model platform placeholder.',
+    cap: 'Cutting-edge experimentation and preview benchmarks'
+  }
+};
+
 // API KEYS MODAL
 const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onClearMedia, onClearAllChats }: any) => {
   const [localKeys, setLocalKeys] = useState(keys);
@@ -301,7 +363,7 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
         throw new Error('Response format from xAI is not compatible.');
       }
     } catch (err: any) {
-      setFetchError(err.message || 'Failed fetching models.');
+      setFetchError(err?.message || 'Failed fetching models.');
     } finally {
       setFetchingModels(false);
     }
@@ -366,7 +428,6 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
               <select
                 value={
                   [
-                    'grok-beta', 
                     'grok-2', 
                     'grok-2-1212', 
                     'grok-2-latest', 
@@ -384,7 +445,6 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
                 }}
                 className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] min-w-[124px] cursor-pointer"
               >
-                <option value="grok-beta">grok-beta (Standard)</option>
                 <option value="grok-2">grok-2</option>
                 <option value="grok-2-1212">grok-2-1212</option>
                 <option value="grok-2-latest">grok-2-latest</option>
@@ -393,7 +453,7 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
                 <option value="grok-3-mini">grok-3-mini</option>
                 <option value="grok-4-latest">grok-4-latest</option>
                 {fetchedModels.filter(m => ![
-                  'grok-beta', 'grok-2', 'grok-2-1212', 'grok-2-latest', 
+                  'grok-2', 'grok-2-1212', 'grok-2-latest', 
                   'grok-3', 'grok-3-latest', 'grok-3-mini', 'grok-4-latest'
                 ].includes(m)).map((modelId) => (
                   <option key={modelId} value={modelId}>
@@ -410,6 +470,33 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
                 className="flex-1 bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
               />
             </div>
+
+            {/* Selected Model Info Card & Capabilities Panel */}
+            {(() => {
+              const modelKey = localKeys.chatModel || 'grok-2-latest';
+              const info = modelDetails[modelKey] || {
+                name: modelKey,
+                costIn: 'Variable',
+                costOut: 'Variable',
+                desc: 'A user-specified or dynamically fetched xAI/Grok model ID.',
+                cap: 'Dynamic depending on the loaded xAI model architecture'
+              };
+              return (
+                <div className="mt-1.5 p-2.5 bg-[#1b1b36] border border-[#c9b8e8]/20 rounded-lg text-[11px] text-[#9a96a8] flex flex-col gap-1.5 transition-all">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-1.5 mb-1">
+                    <span className="font-semibold text-[#c9b8e8]">✨ {info.name}</span>
+                    <span className="bg-[#242442] px-1.5 py-0.5 rounded text-[10px] text-[#7fc4a3] font-mono font-bold">
+                      {info.costIn} / {info.costOut} <span className="text-[9px] text-[#8e8ca0] font-normal">per 1M tokens</span>
+                    </span>
+                  </div>
+                  <p className="text-white/80 text-[10px] leading-relaxed">{info.desc}</p>
+                  <div className="flex gap-1.5 items-center mt-0.5 text-[9px] text-[#9a96a8]">
+                    <span className="font-semibold bg-[#2a233b] text-[#c9b8e8] border border-[#c9b8e8]/20 px-1 py-0.2 rounded uppercase tracking-wider text-[8px]">Capabilities</span>
+                    <span className="text-white/90">{info.cap}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex flex-col gap-1">
@@ -430,7 +517,7 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
               placeholder="atlas-..."
               value={localKeys.atlasKey}
               onChange={(e) => setLocalKeys({ ...localKeys, atlasKey: e.target.value })}
-              className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
+              className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
             />
           </div>
 
@@ -632,7 +719,7 @@ const PromptLibraryModal = ({ Overlay, onClose, userPrompts, onSaveUserPrompt, o
 };
 
 // LORA MANAGER MODAL
-const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, onUpdateLoraScale, onDeleteLora, onImportLoras }: any) => {
+const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, onToggleAllLoras, onUpdateLoraScale, onDeleteLora, onImportLoras }: any) => {
   const [loraName, setLoraName] = useState('');
   const [loraUrl, setLoraUrl] = useState('');
   const [loraTrigger, setLoraTrigger] = useState('');
@@ -692,12 +779,20 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
         </p>
 
         <div className="flex justify-between gap-2">
-          <button
-            onClick={() => loras.forEach((l: any) => onToggleLora(l.id, false))}
-            className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-xs text-[#9a96a8] cursor-pointer"
-          >
-            Unload All
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onToggleAllLoras(true)}
+              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-xs text-[#9a96a8] cursor-pointer"
+            >
+              All On
+            </button>
+            <button
+              onClick={() => onToggleAllLoras(false)}
+              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-xs text-[#9a96a8] cursor-pointer"
+            >
+              All Off
+            </button>
+          </div>
           <div className="flex gap-2">
             <button onClick={handleExport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer">
               <Download size={11} /> Back Up
@@ -715,7 +810,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
               No LoRAs saved. Fill in the registry below to add one.
             </div>
           ) : (
-            loras.map((l: any) => (
+            loras.map((l: any, idx: number) => (
               <div key={l.id} className="bg-[#1a1a2e]/50 border border-white/5 rounded-xl p-3 flex items-start justify-between gap-3 relative group">
                 <div className="flex items-start gap-2.5 flex-1 min-width-0">
                   <input
@@ -725,7 +820,9 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
                     className="w-4.5 h-4.5 accent-[#c9b8e8] cursor-pointer"
                   />
                   <div className="flex-1 min-width-0">
-                    <div className="text-xs font-semibold text-[#f0ece4] truncate">{l.name}</div>
+                    <div className="text-xs font-semibold text-[#f0ece4] truncate">
+                      <span className="text-[#9a96a8] mr-1">#{idx + 1}</span> {l.name}
+                    </div>
                     <div className="text-[10px] text-[#9a96a8] truncate mt-0.5">
                       Base: <b className="text-[#c9b8e8]">{l.base}</b> &middot; Trigger: <b>{l.trigger}</b>
                     </div>

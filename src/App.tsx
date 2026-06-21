@@ -10,7 +10,10 @@ import {
   callModel,
   runEdit,
   callWaveSpeed,
-  atlasPrepareImage
+  atlasPrepareImage,
+  extractAtlasUrl,
+  pollAtlasPrediction,
+  resolveKey
 } from './api';
 import {
   PE_SYSTEM_PROMPTS,
@@ -28,13 +31,20 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
   // Api Keys & Local Storage credentials
-  const [keys, setKeys] = useState({
-    apiKey: '',
-    wavespeedKey: '',
-    atlasKey: '',
-    cloudinaryCloud: '',
-    cloudinaryPreset: '',
-    chatModel: 'grok-beta'
+  const [keys, setKeys] = useState(() => {
+    let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-latest');
+    if (chatStr === 'grok-beta') {
+       chatStr = 'grok-2-latest';
+       localStorage.setItem('xai_chat_model', 'grok-2-latest');
+    }
+    return {
+      apiKey: resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || ''),
+      wavespeedKey: resolveKey('ws_key', import.meta.env.VITE_WAVESPEED_KEY || ''),
+      atlasKey: resolveKey('atlas_key', import.meta.env.VITE_ATLAS_KEY || ''),
+      cloudinaryCloud: resolveKey('cloudinary_cloud', import.meta.env.VITE_CLOUDINARY_CLOUD || ''),
+      cloudinaryPreset: resolveKey('cloudinary_preset', import.meta.env.VITE_CLOUDINARY_PRESET || ''),
+      chatModel: chatStr
+    };
   });
 
   const [storageSizeMB, setStorageSizeMB] = useState<string>('0.0');
@@ -57,6 +67,13 @@ export default function App() {
   // Style Lock Parameters
   const [styleLockActive, setStyleLockActive] = useState<boolean>(false);
   const [lockedStyle, setLockedStyle] = useState<string>('');
+
+  useEffect(() => {
+    if (keys.chatModel === 'grok-beta') {
+      setKeys(k => ({ ...k, chatModel: 'grok-2-latest' }));
+      try { localStorage.setItem('xai_chat_model', 'grok-2-latest'); } catch (err) {}
+    }
+  }, [keys.chatModel]);
 
   // Storyboard Configuration Rules
   const [storyboardOn, setStoryboardOn] = useState<boolean>(false);
@@ -106,17 +123,6 @@ export default function App() {
 
   // 1. Initial Load from LocalStorage
   useEffect(() => {
-    // Keys
-    const k = {
-      apiKey: localStorage.getItem('xai_key') || '',
-      wavespeedKey: localStorage.getItem('ws_key') || '',
-      atlasKey: localStorage.getItem('atlas_key') || '',
-      cloudinaryCloud: localStorage.getItem('cloudinary_cloud') || '',
-      cloudinaryPreset: localStorage.getItem('cloudinary_preset') || '',
-      chatModel: localStorage.getItem('xai_chat_model') || 'grok-beta'
-    };
-    setKeys(k);
-
     // Threads
     try {
       const stored = JSON.parse(localStorage.getItem('gs_threads') || '[]');
@@ -153,8 +159,56 @@ export default function App() {
 
     // LoRAs
     try {
-      const storedLoras = JSON.parse(localStorage.getItem('zaor_loras') || '[]');
-      setLoras(storedLoras);
+      const storedStr = localStorage.getItem('zaor_loras');
+      if (storedStr) {
+        setLoras(JSON.parse(storedStr));
+      } else {
+        const envLoras: LoRA[] = [];
+        const lora1Url = import.meta.env.VITE_LORA_1_URL;
+        if (lora1Url) {
+          envLoras.push({
+            id: Date.now() + 1,
+            name: import.meta.env.VITE_LORA_1_NAME || `Env LoRA 1`,
+            url: lora1Url,
+            trigger: import.meta.env.VITE_LORA_1_TRIGGER || '',
+            base: import.meta.env.VITE_LORA_1_BASE || 'Flux',
+            scale: 1,
+            notes: 'Loaded from Secrets',
+            active: true
+          });
+        }
+        const lora2Url = import.meta.env.VITE_LORA_2_URL;
+        if (lora2Url) {
+          envLoras.push({
+            id: Date.now() + 2,
+            name: import.meta.env.VITE_LORA_2_NAME || `Env LoRA 2`,
+            url: lora2Url,
+            trigger: import.meta.env.VITE_LORA_2_TRIGGER || '',
+            base: import.meta.env.VITE_LORA_2_BASE || 'Flux',
+            scale: 1,
+            notes: 'Loaded from Secrets',
+            active: true
+          });
+        }
+        const lora3Url = import.meta.env.VITE_LORA_3_URL;
+        if (lora3Url) {
+          envLoras.push({
+            id: Date.now() + 3,
+            name: import.meta.env.VITE_LORA_3_NAME || `Env LoRA 3`,
+            url: lora3Url,
+            trigger: import.meta.env.VITE_LORA_3_TRIGGER || '',
+            base: import.meta.env.VITE_LORA_3_BASE || 'Flux',
+            scale: 1,
+            notes: 'Loaded from Secrets',
+            active: true
+          });
+        }
+        
+        setLoras(envLoras);
+        if (envLoras.length > 0) {
+          localStorage.setItem('zaor_loras', JSON.stringify(envLoras));
+        }
+      }
     } catch {
       setLoras([]);
     }
@@ -207,13 +261,17 @@ export default function App() {
 
   const updateCurrentThread = (updater: (t: Thread) => Thread) => {
     if (!currentThreadId) return;
-    const newList = threads.map(t => {
-      if (t.id === currentThreadId) {
-        return updater(t);
-      }
-      return t;
+    setThreads(prev => {
+      const newList = prev.map(t => {
+        if (t.id === currentThreadId) {
+          return updater(t);
+        }
+        return t;
+      });
+      localStorage.setItem('gs_threads', JSON.stringify(newList));
+      setTimeout(recalcStorageSize, 0); // Decouple from render cycle
+      return newList;
     });
-    updateThreadsList(newList);
   };
 
   // Create new campaign game
@@ -398,7 +456,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
       body: JSON.stringify({
-        model: keys.chatModel || 'grok-beta',
+        model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
         messages: messagesPayload,
         max_tokens: 2048
       })
@@ -409,7 +467,7 @@ export default function App() {
       let errMessage = 'Grok direct blocked call.';
       try {
         const errBody = JSON.parse(errText);
-        errMessage = errBody.error?.message || errBody.error || errBody.message || errText || errMessage;
+        errMessage = errBody?.error?.message || errBody?.error || errBody?.message || errText || errMessage;
       } catch {
         errMessage = errText || errMessage;
       }
@@ -584,7 +642,7 @@ export default function App() {
         aspectRatio: videoRatio
       });
 
-      const res = await fetch('https://api.atlascloud.ai/api/v1/model/predict', {
+      const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -592,17 +650,25 @@ export default function App() {
         },
         body: JSON.stringify({
           model: m.path,
-          input: atlasBody
+          ...atlasBody
         })
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(`Atlas cloud error ${res.status}: ${err.message || 'Error occurred.'}`);
+        throw new Error(`Atlas cloud error ${res.status}: ${err?.message || 'Error occurred.'}`);
       }
 
       const data = await res.json();
-      const outUrl = data.url || data.data?.url || data.outputs?.[0] || data.data?.media_url || data.media_url;
+      
+      let outUrl = extractAtlasUrl(data);
+      if (!outUrl) {
+        const predId = data.id || data.data?.id || data.outputs?.[0]?.id || data.task_id || data.data?.task_id;
+        if (predId) {
+          outUrl = await pollAtlasPrediction(predId, keys.atlasKey);
+        }
+      }
+
       if (!outUrl) throw new Error('Atlas prediction returned empty output path.');
 
       const videoCard: Message = {
@@ -620,7 +686,7 @@ export default function App() {
       return;
     }
 
-    if (actualEngine === 'aurora' || actualEngine === 'aurora_extend') {
+    if (actualEngine.includes('aurora')) {
       if (!keys.apiKey) throw new Error('xAI Keystore key is missing');
       let xaiBody: any;
       let endpoint = 'https://api.x.ai/v1/videos/generations';
@@ -630,8 +696,7 @@ export default function App() {
         xaiBody = {
           model: 'grok-imagine-video',
           prompt: promptText,
-          video_url: prevVideo,
-          duration: Math.min(Math.max(durRaw, 2), 10)
+          video: { url: prevVideo }
         };
       } else {
         xaiBody = {
@@ -651,16 +716,46 @@ export default function App() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(`Aurora Video Failed: ${err.error?.message || 'Server block response.'}`);
+        if (res.status === 404) {
+          throw new Error('xAI returned 404 Not Found. This endpoint or feature might not be available yet. Try a different model like Wan 2.2 for extending.');
+        }
+        let errText = await res.text();
+        let errMsg = 'Server block response.';
+        try {
+          const errJson = JSON.parse(errText);
+          errMsg = errJson?.error?.message || errJson?.message || errText;
+        } catch (e) {
+          errMsg = errText.slice(0, 50); // limit chars
+        }
+        throw new Error(`Aurora Video Failed (${res.status}): ${errMsg}`);
       }
 
       const resData = await res.json();
-      const requestId = resData.request_id;
-      if (!requestId) throw new Error('Xai failed to dispatch reference parameters ID');
+      const requestId = resData.request_id || resData.id;
+      let syncUrl = null;
+      if (resData.url || resData.video_url || (resData.video && resData.video.url)) {
+        syncUrl = resData.url || resData.video_url || resData.video.url;
+        extractFn = () => syncUrl;
+      }
 
-      pollingUrl = `https://api.x.ai/v1/videos/${requestId}`;
-      extractFn = d => d.status === 'done' ? d.video?.url || null : (['failed', 'expired', 'error'].includes(d.status) ? 'FAILED' : null);
+      if (!requestId && !syncUrl) {
+        throw new Error(`xAI failed to dispatch reference parameters ID. Response: ${JSON.stringify(resData).slice(0, 50)}`);
+      }
+
+      pollingUrl = requestId ? `https://api.x.ai/v1/videos/${requestId}` : '';
+      extractFn = d => {
+        if (syncUrl) return syncUrl;
+        const s = String(d.status || d.state || '').toLowerCase();
+        if (s === 'done' || s === 'completed') {
+          const out = d.video?.url || d.video_url || d.url || null;
+          return typeof out === 'string' ? out : null;
+        }
+        if (['failed', 'expired', 'error'].includes(s)) {
+          if (d.error?.message) return `FAILED: ${d.error.message}`;
+          return 'FAILED';
+        }
+        return null;
+      };
     } else {
       // WaveSpeed WAN
       if (!keys.wavespeedKey) throw new Error('WaveSpeed Credentials Key required.');
@@ -668,8 +763,13 @@ export default function App() {
       let path = '';
 
       if (prevVideo) {
-        path = 'alibaba/wan-2.7/video-extend';
-        body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
+        if (actualEngine === 'wan22spicy-extend' || actualEngine === 'wan22spicy') {
+          path = 'wavespeed-ai/wan-2.2-spicy/video-extend';
+          body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
+        } else {
+          path = 'alibaba/wan-2.7/video-extend';
+          body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
+        }
       } else if (imgContext) {
         path = actualEngine === 'seedance15spicy'
           ? 'bytedance/seedance-v1.5-pro/image-to-video-spicy'
@@ -707,7 +807,7 @@ export default function App() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(`WaveSpeed Submit Failed: ${err.message || 'Block validation issue.'}`);
+        throw new Error(`WaveSpeed Submit Failed: ${err?.message || 'Block validation issue.'}`);
       }
 
       const resData = await res.json();
@@ -723,37 +823,62 @@ export default function App() {
       };
     }
 
+    // Support synchronous success 
+    let syncOutUrl = null;
+    if (actualEngine.includes('aurora') && !pollingUrl) {
+       syncOutUrl = extractFn({}); 
+    }
+
     // Call fetch loop
     let loops = 0;
     while (loops < 120) {
+      if (syncOutUrl) break;
       await new Promise(r => setTimeout(r, 5000));
       loops++;
 
-      const pHeaders = actualEngine === 'aurora' || actualEngine === 'aurora_extend'
+      const pHeaders = actualEngine.includes('aurora')
         ? { Authorization: `Bearer ${keys.apiKey}` }
         : { Authorization: `Bearer ${keys.wavespeedKey}` };
 
-      const check = await fetch(pollingUrl, { headers: pHeaders });
-      if (!check.ok) continue;
+      const check = await fetch(pollingUrl, { headers: pHeaders }).catch(() => null);
+      if (!check) continue;
+      if (!check.ok) {
+        if (check.status === 401 || check.status === 403 || check.status === 404) {
+          const errBody = await check.text().catch(() => 'Unknown polling error');
+          throw new Error(`Video polling failed (${check.status}): ${errBody}`);
+        }
+        continue; // Retro/transient server errors
+      }
 
-      const cData = await check.json();
+      const cData = await check.json().catch(() => ({}));
       const extracted = extractFn(cData);
 
-      if (extracted === 'FAILED') throw new Error('Video generation failed at remote backend.');
+      if (typeof extracted === 'string' && extracted.startsWith('FAILED')) {
+        throw new Error(`Video generation failed at remote backend: ${extracted.replace('FAILED', '')}`);
+      }
       if (extracted) {
-        const videoCard: Message = {
-          role: 'assistant',
-          type: 'video',
-          src: extracted,
-          alt: promptText,
-          engineLabel: actualEngine === 'aurora' ? 'Aurora T2V' : 'WaveSpeed WAN 2.2',
-          storedDuration: durRaw,
-          storedRes: resolution
-        };
-        updateCurrentThread(t => ({ ...t, messages: [...t.messages, videoCard] }));
-        return;
+        syncOutUrl = extracted;
+        break;
       }
     }
+    
+    if (syncOutUrl) {
+      const videoCard: Message = {
+        role: 'assistant',
+        type: 'video',
+        src: syncOutUrl,
+        alt: promptText,
+        engineLabel: actualEngine.includes('aurora') ? (prevVideo ? 'Aurora Extend' : 'Aurora T2V')
+          : actualEngine.includes('wan27') ? 'WaveSpeed Wan 2.7'
+          : actualEngine.includes('wan22') ? 'WaveSpeed Wan 2.2'
+          : 'Video',
+        storedDuration: durRaw,
+        storedRes: resolution
+      };
+      updateCurrentThread(t => ({ ...t, messages: [...t.messages, videoCard] }));
+      return;
+    }
+
     throw new Error('Video polling timed out after 10 minutes.');
   };
 
@@ -777,7 +902,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel || 'grok-beta',
+          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: contentPrompt }
@@ -1071,7 +1196,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel || 'grok-beta',
+          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
           messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
           temperature: 0.6,
           max_tokens: 500
@@ -1120,7 +1245,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel || 'grok-beta',
+          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
           messages: [
             { role: 'system', content: sys },
             { role: 'user', content: prompt }
@@ -1502,24 +1627,6 @@ export default function App() {
                   <button
                     onClick={() => {
                       setOverflowMenuOpen(false);
-                      setActiveModal('setup');
-                    }}
-                    className="w-full text-left p-2.5 rounded-lg text-xs font-medium text-[#f0ece4] hover:bg-[#2e2e48] transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <BookOpen size={12} className="text-[#c9b8e8]" /> Setup Scenario Premise
-                  </button>
-                  <button
-                    onClick={() => {
-                      setOverflowMenuOpen(false);
-                      setActiveModal('cast');
-                    }}
-                    className="w-full text-left p-2.5 rounded-lg text-xs font-medium text-[#f0ece4] hover:bg-[#2e2e48] transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <Users size={12} className="text-[#c9b8e8]" /> Casting & Characters
-                  </button>
-                  <button
-                    onClick={() => {
-                      setOverflowMenuOpen(false);
                       setActiveModal('library');
                     }}
                     className="w-full text-left p-2.5 rounded-lg text-xs font-medium text-[#f0ece4] hover:bg-[#2e2e48] transition-colors flex items-center gap-2 cursor-pointer"
@@ -1621,8 +1728,25 @@ export default function App() {
           }}
           onCloudSave={handleCloudSaveAction}
           onGrabLastFrame={handleGrabVideoFrame}
-          onRetryVideo={(promptTxt, parentEngine, dur, resolution) => {
-            executeVideoGen(promptTxt, null, parentEngine === 'WaveSpeed WAN 2.2' ? 'wan22spicy' : 'aurora', null, dur, resolution);
+          onRetryVideo={async (promptTxt, parentEngine, dur, resolution, targetVid) => {
+            let engine = parentEngine === 'WaveSpeed WAN 2.2' ? 'wan22spicy' : (parentEngine || 'aurora');
+            engine = engine.toLowerCase();
+            
+            // Add temporary typing indicator for video generations so users have direct immediate visual feedback
+            const tempLoadingId = `vid-ext-${Date.now()}`;
+            const loadingMsg: Message = { role: 'assistant', content: '⏳ Processing video extension... this can take up to a minute.', type: 'text', id: tempLoadingId } as any;
+            updateCurrentThread(t => ({ ...t, messages: [...t.messages, loadingMsg] }));
+            
+            setIsLoading(true);
+            try {
+              await executeVideoGen(promptTxt, null, engine, targetVid || null, dur, resolution);
+            } catch (e: any) {
+              const errCard: Message = { role: 'assistant', type: 'error', content: e.message };
+              updateCurrentThread(t => ({ ...t, messages: [...t.messages, errCard] }));
+            } finally {
+              updateCurrentThread(t => ({ ...t, messages: t.messages.filter((m: any) => m.id !== tempLoadingId) }));
+              setIsLoading(false);
+            }
           }}
           onSaveToFiles={onSaveToFiles}
           editModelsHtml=""
@@ -1809,6 +1933,11 @@ export default function App() {
         loras={loras}
         onAddLora={handleAddLora}
         onToggleLora={handleToggleLora}
+        onToggleAllLoras={(active) => {
+          const list = loras.map(l => ({ ...l, active }));
+          setLoras(list);
+          localStorage.setItem('zaor_loras', JSON.stringify(list));
+        }}
         onUpdateLoraScale={handleUpdateLoraScale}
         onDeleteLora={handleDeleteLora}
         onImportLoras={handleImportLoras}

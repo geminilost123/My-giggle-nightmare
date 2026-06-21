@@ -556,6 +556,14 @@ export function modelsByCat(cat: ModelRegistryEntry['cat']): [string, ModelRegis
   return Object.entries(MODEL_REGISTRY).filter(([_, m]) => m.cat === cat && m.verified);
 }
 
+export function resolveKey(storageName: string, envVal: string): string {
+  const item = localStorage.getItem(storageName);
+  if (!item || item === 'null' || item === 'undefined' || item.trim() === '') {
+    return envVal || '';
+  }
+  return item;
+}
+
 // Model execution gateway callModel
 export async function callModel(modelId: string, params: {
   prompt: string;
@@ -569,9 +577,9 @@ export async function callModel(modelId: string, params: {
   const m = MODEL_REGISTRY[modelId];
   if (!m) throw new Error('Unsupported model identifier.');
 
-  const xaiKey = localStorage.getItem('xai_key') || '';
-  const wsKey = localStorage.getItem('ws_key') || '';
-  const atlasKey = localStorage.getItem('atlas_key') || '';
+  const xaiKey = resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || '');
+  const wsKey = resolveKey('ws_key', import.meta.env.VITE_WAVESPEED_KEY || '');
+  const atlasKey = resolveKey('atlas_key', import.meta.env.VITE_ATLAS_KEY || '');
 
   const body = m.buildBody(params);
 
@@ -584,7 +592,7 @@ export async function callModel(modelId: string, params: {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`xAI error ${res.status}: ${err.error?.message || 'Unauthorized or rate limited.'}`);
+      throw new Error(`xAI error ${res.status}: ${err?.error?.message || 'Unauthorized or rate limited.'}`);
     }
     const data = await res.json();
     const b64 = data.data?.[0]?.b64_json;
@@ -601,7 +609,7 @@ export async function callModel(modelId: string, params: {
 
   if (m.provider === 'atlas') {
     if (!atlasKey) throw new Error('Atlas Cloud credentials missing.');
-    const res = await fetch('https://api.atlascloud.ai/api/v1/model/predict', {
+    const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -609,17 +617,28 @@ export async function callModel(modelId: string, params: {
       },
       body: JSON.stringify({
         model: m.path,
-        input: body
+        ...body
       })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`Atlas cloud error ${res.status}: ${err.message || 'Error occurred.'}`);
+      throw new Error(`Atlas cloud error ${res.status}: ${err?.message || 'Error occurred.'}`);
     }
     const data = await res.json();
-    const outUrl = data.url || data.data?.url || data.outputs?.[0] || data.data?.media_url || data.media_url;
-    if (!outUrl) throw new Error('Atlas prediction returned empty output path.');
-    return outUrl;
+    
+    // First try to extract the URL synchronously
+    const outUrl = extractAtlasUrl(data);
+    if (outUrl) {
+      return outUrl;
+    }
+
+    // Fallback to asynchronous polling if an ID exists
+    const predId = data.id || data.data?.id || data.outputs?.[0]?.id || data.task_id || data.data?.task_id;
+    if (predId) {
+      return await pollAtlasPrediction(predId, atlasKey);
+    }
+
+    throw new Error('Atlas prediction returned empty output path.');
   }
 
   throw new Error('Unsupported provider.');
@@ -630,9 +649,9 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
   const m = MODEL_REGISTRY[modelId];
   if (!m) throw new Error(`Unsupported edit model identifier: ${modelId}`);
 
-  const xaiKey = localStorage.getItem('xai_key') || '';
-  const wsKey = localStorage.getItem('ws_key') || '';
-  const atlasKey = localStorage.getItem('atlas_key') || '';
+  const xaiKey = resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || '');
+  const wsKey = resolveKey('ws_key', import.meta.env.VITE_WAVESPEED_KEY || '');
+  const atlasKey = resolveKey('atlas_key', import.meta.env.VITE_ATLAS_KEY || '');
 
   const body = m.buildBody({ prompt, image: imageSrc });
 
@@ -645,7 +664,7 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`xAI error ${res.status}: ${err.error?.message || 'Network call error.'}`);
+      throw new Error(`xAI error ${res.status}: ${err?.error?.message || 'Network call error.'}`);
     }
     const data = await res.json();
     const b64 = data.data?.[0]?.b64_json;
@@ -665,7 +684,7 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
     const preparedImage = await atlasPrepareImage(imageSrc, atlasKey);
     const atlasBody = m.buildBody({ prompt, image: preparedImage });
 
-    const res = await fetch('https://api.atlascloud.ai/api/v1/model/predict', {
+    const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -673,17 +692,26 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
       },
       body: JSON.stringify({
         model: m.path,
-        input: atlasBody
+        ...atlasBody
       })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`Atlas edit failed ${res.status}: ${err.message || 'Internal issue.'}`);
+      throw new Error(`Atlas edit failed ${res.status}: ${err?.message || 'Internal issue.'}`);
     }
     const data = await res.json();
-    const outUrl = data.url || data.data?.url || data.outputs?.[0] || data.data?.media_url || data.media_url;
-    if (!outUrl) throw new Error('Atlas prediction returned empty output path for edit.');
-    return outUrl;
+    
+    const outUrl = extractAtlasUrl(data);
+    if (outUrl) {
+      return outUrl;
+    }
+
+    const predId = data.id || data.data?.id || data.outputs?.[0]?.id || data.task_id || data.data?.task_id;
+    if (predId) {
+      return await pollAtlasPrediction(predId, atlasKey);
+    }
+
+    throw new Error('Atlas prediction returned empty output path for edit.');
   }
 
   throw new Error('Unsupported edit provider.');
@@ -798,3 +826,102 @@ export async function callWaveSpeed(
   }
   throw new Error('WaveSpeed request timed out');
 }
+
+// Local helper to robustly parse the output URL from Atlas response
+export function extractAtlasUrl(data: any): string | null {
+  if (!data) return null;
+
+  // Try direct properties
+  const directPossibilities = [
+    data.url,
+    data.media_url,
+    data.output,
+    data.outputs
+  ];
+  
+  for (const item of directPossibilities) {
+    if (typeof item === 'string' && item.startsWith('http')) return item;
+    if (Array.isArray(item) && item.length > 0) {
+      const first = item[0];
+      if (typeof first === 'string' && first.startsWith('http')) return first;
+      if (first && typeof first === 'object' && first.url && typeof first.url === 'string') return first.url;
+    }
+  }
+
+  // Try nested under .data object
+  if (data.data && typeof data.data === 'object') {
+    const dataPossibilities = [
+      data.data.url,
+      data.data.media_url,
+      data.data.output,
+      data.data.outputs
+    ];
+    for (const item of dataPossibilities) {
+      if (typeof item === 'string' && item.startsWith('http')) return item;
+      if (Array.isArray(item) && item.length > 0) {
+        const first = item[0];
+        if (typeof first === 'string' && first.startsWith('http')) return first;
+        if (first && typeof first === 'object' && first.url && typeof first.url === 'string') return first.url;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Polling prediction utility for Atlas Cloud
+export async function pollAtlasPrediction(id: string, atlasKey: string): Promise<string> {
+  const startTime = Date.now();
+  const timeoutMs = 600000; // 10 minutes
+  const intervalMs = 3000;  // 3 seconds
+
+  const endpoints = [
+    (predId: string) => `https://api.atlascloud.ai/api/v1/model/prediction/${predId}`,
+    (predId: string) => `https://api.atlascloud.ai/v1/predictions/${predId}`,
+    (predId: string) => `https://api.atlascloud.ai/v1/model/predict/status?id=${predId}`,
+    (predId: string) => `https://api.atlascloud.ai/v1/model/predict?id=${predId}`
+  ];
+
+  while (Date.now() - startTime < timeoutMs) {
+    let lastErr: Error | null = null;
+    
+    for (const getUrlBuilder of endpoints) {
+      try {
+        const url = getUrlBuilder(id);
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${atlasKey}`
+          }
+        });
+        
+        if (res.ok) {
+          const pollData = await res.json();
+          const outUrl = extractAtlasUrl(pollData);
+          if (outUrl) {
+            return outUrl;
+          }
+
+          const status = (pollData.status || pollData.data?.status || '').toLowerCase();
+          if (status === 'failed' || status === 'error') {
+            throw new Error(pollData.message || 'Atlas task reported failure status.');
+          }
+          
+          lastErr = null;
+          break; // successfully queried, so wait for the next iteration tick
+        }
+      } catch (err: any) {
+        lastErr = err;
+      }
+    }
+    
+    if (lastErr) {
+      console.warn('Atlas polling tick warning:', lastErr);
+    }
+    
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  
+  throw new Error('Atlas prediction polling timed out.');
+}
+
