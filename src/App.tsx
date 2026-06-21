@@ -1124,21 +1124,38 @@ export default function App() {
   const handleGrabVideoFrame = async (videoUrl: string, setter: (v: string) => void) => {
     setter('◳ Capture...');
     try {
+      // Fetch as blob first to completely avoid remote canvas CORS pollution issues
+      const res = await fetch(videoUrl);
+      if (!res.ok) throw new Error('Video fetch failed');
+      const blob = await res.blob();
+      const localUrl = URL.createObjectURL(blob);
+
       const v = document.createElement('video');
-      v.crossOrigin = 'anonymous';
       v.muted = true;
       v.preload = 'auto';
+      v.playsInline = true;
 
       const frameDataUrl = await new Promise<string>((resolve, reject) => {
-        v.addEventListener('error', () => reject(new Error('Canvas CORS lock or file issue.')));
-        v.addEventListener('loadedmetadata', () => {
-          v.currentTime = Math.max(0, v.duration - 0.1);
+        const cleanup = () => URL.revokeObjectURL(localUrl);
+
+        v.addEventListener('error', () => {
+          cleanup();
+          reject(new Error('Canvas CORS lock or file issue.'));
+        });
+        v.addEventListener('loadeddata', () => {
+          // Some browsers need the video to be drawn to canvas when it's fully ready
+          if (v.duration && v.duration !== Infinity) {
+             v.currentTime = Math.max(0, v.duration - 0.1);
+          } else {
+             // Fallback for infinite duration streams
+             v.currentTime = 1;
+          }
         });
         v.addEventListener('seeked', () => {
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = v.videoWidth;
-            canvas.height = v.videoHeight;
+            canvas.width = v.videoWidth || 640;
+            canvas.height = v.videoHeight || 480;
             const ctx = canvas.getContext('2d');
             if (ctx) {
               ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
@@ -1148,9 +1165,12 @@ export default function App() {
             }
           } catch (err) {
             reject(err);
+          } finally {
+            cleanup();
           }
         });
-        v.src = videoUrl;
+        v.src = localUrl;
+        v.load();
       });
 
       const newFrameCard: Message = {

@@ -232,6 +232,9 @@ export const Modals: React.FC<ModalsProps> = ({
           onClose={onClose}
           storyboardRatio={storyboardRatio}
           storyboardFrames={storyboardFrames}
+          setup={setup}
+          cast={cast}
+          loras={loras}
         />
       )}
 
@@ -1476,97 +1479,180 @@ const SaveLoadModal = ({ Overlay, onClose, onSerializeGame, onDeserializeGame }:
   );
 };
 
-// EXPORT TO DRAW THINGS MODAL
-const ExportDrawThingsModal = ({ Overlay, onClose, storyboardRatio, storyboardFrames }: any) => {
-  const [mode, setMode] = useState<'i2v' | 't2v'>('i2v');
-  const [model, setModel] = useState('wan-ti2v-5b');
-  const [res, setRes] = useState('');
+// EXPORT TO DRAW THINGS MODAL (Advanced Scripting API)
+const ExportDrawThingsModal = ({ Overlay, onClose, storyboardRatio, storyboardFrames, setup, cast, loras }: any) => {
+  const [mode, setMode] = useState<'i2v' | 't2v' | 'i2i' | 't2i'>('t2i');
+  const [model, setModel] = useState('Keep Current GUI Model');
+  const [res, setRes] = useState('1024x1024');
   const [frames, setFrames] = useState(81);
-  const [steps, setSteps] = useState(8);
+  const [steps, setSteps] = useState(20);
+  const [negativePrompt, setNegativePrompt] = useState('ugly, blurry, low res, unrealistic');
   const [scriptTxt, setScriptTxt] = useState('');
 
   const sizes = {
-    '16:9': ['512x320', '1024x576'],
-    '9:16': ['320x640', '576x1024'],
-    '1:1': ['512x512', '768x768'],
-    '4:3': ['768x576'],
-    '3:4': ['576x768']
-  }[storyboardRatio as '16:9'] || ['512x320', '1024x576'];
+    '16:9': ['1280x720', '1024x576', '512x320'],
+    '9:16': ['720x1280', '576x1024', '320x640'],
+    '1:1': ['1024x1024', '768x768', '512x512'],
+    '4:3': ['1024x768', '768x576'],
+    '3:4': ['768x1024', '576x768']
+  }[storyboardRatio as '16:9'] || ['1024x1024', '512x512'];
 
   useEffect(() => {
-    if (sizes.length > 0) setRes(sizes[sizes.length - 1]);
+    if (sizes.length > 0) setRes(sizes[0]);
   }, [storyboardRatio]);
 
-  const compileScript = () => {
-    if (storyboardFrames.length === 0) return alert('No storyboard frames inside this game to export.');
+  const compileScript = async () => {
+    if (!storyboardFrames || storyboardFrames.length === 0) {
+      return alert('No storyboard frames inside this game to export.');
+    }
+    
     const dims = res.split('x');
 
     const escapeStr = (s: string) =>
       `"${String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').trim()}"`;
 
+    const activeLoras = loras ? loras.filter((l: any) => l.active) : [];
+    const loraDetails = activeLoras.map((l: any) => `${l.name} (${l.scale})`);
+    const loraTriggers = activeLoras.map((l: any) => l.triggerWord).filter(Boolean).join(', ');
+    
+    // Master Styles
+    const globalStyle = setup?.masterPrompt || '';
+    
     const lines: string[] = [
       '//@api-1.0',
-      `// ===== Zaor scene export · ${mode} · ${storyboardFrames.length} clips =====`,
-      '// BEFORE RUNNING, set these in the Draw Things UI:',
-      `//   Model: ${model}`,
-      `//   Image Size: ${dims[0]}x${dims[1]}   Frames: ${frames}   Steps: ${steps}`,
-      '//   Sampler: UniPC Trailing   Shift: 5.0   Text Guidance: 3.5 &middot; Cloud offload enabled',
-      '//   Save Video: Movie (.mov)',
+      `// ===== Zaor Director Script · ${mode} · ${storyboardFrames.length} clips =====`,
+      '// NOTE: Run this directly inside Draw Things via the Scripts button.',
       ''
     ];
 
-    lines.push('var shots = [');
+    lines.push('var shots = [];');
     storyboardFrames.forEach((f: any, i: number) => {
-      const prompt = f.videoPrompt || f.alt || 'cinematic motion, smooth camera';
-      const tail = i < storyboardFrames.length - 1 ? ',' : '';
+      let basePrompt = f.videoPrompt || f.alt || 'cinematic motion, smooth camera';
+      
+      let castStr = '';
+      if (cast) {
+        cast.forEach((c: any) => {
+          if (basePrompt.toLowerCase().includes(c.name.toLowerCase())) {
+             castStr += `, ${c.desc || c.keywords || ''}`;
+          }
+        });
+      }
+
+      let finalPrompt = `${loraTriggers ? loraTriggers + ', ' : ''}${basePrompt}${castStr}${globalStyle ? ', ' + globalStyle : ''}`;
+
       if (mode === 'i2v') {
-        lines.push(`  { img: "shot_${String(i + 1).padStart(2, '0')}.png", prompt: ${escapeStr(prompt)} }${tail}`);
+        lines.push(`shots.push({ img: "shot_${String(i + 1).padStart(2, '0')}.png", prompt: ${escapeStr(finalPrompt)}, negative: ${escapeStr(negativePrompt)}, steps: ${steps} });`);
       } else {
-        lines.push(`  { prompt: ${escapeStr(prompt)} }${tail}`);
+        lines.push(`shots.push({ prompt: ${escapeStr(finalPrompt)}, negative: ${escapeStr(negativePrompt)}, steps: ${steps} });`);
       }
     });
-    lines.push('];', '');
 
-    lines.push('for (var i = 0; i < shots.length; i++) {');
-    lines.push('  var s = shots[i];');
-    if (mode === 'i2v') {
-      L_I2V(L => {
-        L.push('  canvas.loadImageSrc(filesystem.pictures.path + "/" + s.img);');
-      }, lines);
-    }
-    lines.push('  pipeline.run({ configuration: pipeline.configuration, prompt: s.prompt });');
+    lines.push('');
+    lines.push('// Known community models mapped for selection options:');
+    lines.push('var modelsToPick = ["Keep Current Model", "Generic SDXL", "sd3-large-turbo-3.5", "flux-1-dev-exact", "wan-2.1-14b-t2v-fusionx", "ltx-2.3-22b-distilled-exact", "qwen-image-1.0-exact"];');
+    lines.push('');
+    lines.push('// Fire up the Draw Things native prompt user interface');
+    lines.push('var uiConfig = requestFromUser("Zaor AI Director", "Confirm & Generate Batch", function() {');
+    lines.push('  var elements = [');
+    lines.push('    this.section("Cloud Compute Advisory", "Your Cloud Compute allowance is 40,000 units (15k free tier) per generation.", [');
+    lines.push('      this.plainText("Each image costs approx $0.005 server-side. Larger resolutions and higher step counts drain allowance quickly."),');
+    lines.push(`      this.plainText("Active LoRAs Required: ${loraDetails.length > 0 ? loraDetails.join(' | ') : 'None'}")`);
+    lines.push('    ])');
+    lines.push('  ];');
+    lines.push('  for (var i = 0; i < shots.length; i++) {');
+    lines.push('    var s = shots[i];');
+    lines.push('    elements.push(');
+    lines.push('      this.section("Frame " + (i + 1), s.prompt.substring(0, 40) + "...", [');
+    lines.push('        this.menu(0, modelsToPick),');
+    lines.push('        this.textField(s.prompt, "Prompt", true, 60),');
+    lines.push('        this.textField(s.steps.toString(), "Steps", false, 20)');
+    lines.push('      ])');
+    lines.push('    );');
+    lines.push('  }');
+    lines.push('  return elements;');
+    lines.push('});');
+    lines.push('');
+    lines.push('if (uiConfig) {');
+    lines.push('  var cfgIdx = 0;');
+    lines.push('  for (var i = 0; i < shots.length; i++) {');
+    lines.push('    var selectedModelIdx = uiConfig[cfgIdx++];');
+    lines.push('    var editedPrompt = uiConfig[cfgIdx++];');
+    lines.push('    var selectedSteps = parseInt(uiConfig[cfgIdx++]) || shots[i].steps;');
+    lines.push('    ');
+    lines.push('    var runConfig = Object.assign({}, pipeline.configuration);');
+    lines.push('    runConfig.negative_prompt = shots[i].negative;');
+    lines.push('    runConfig.steps = selectedSteps;');
+    lines.push('    if (selectedModelIdx > 0) {');
+    lines.push('        // Try to dynamically inject desired model override per frame');
+    lines.push('        runConfig.model = modelsToPick[selectedModelIdx];');
+    lines.push('        runConfig.model_id = modelsToPick[selectedModelIdx];');
+    lines.push('    }');
+    lines.push('    ');
+    lines.push('    // If Image to Video mode, load src mask/image onto canvas');
+    lines.push('    if (shots[i].img) {');
+    lines.push('      console.log("Loading source frame: " + shots[i].img);');
+    lines.push('      canvas.loadImageSrc(filesystem.pictures.path + "/" + shots[i].img);');
+    lines.push('    }');
+    lines.push('    ');
+    lines.push('    console.log("Generating Scene " + (i+1) + " / " + shots.length + " (Override Model: " + modelsToPick[selectedModelIdx] + ")");');
+    lines.push('    pipeline.run({ configuration: runConfig, prompt: editedPrompt });');
+    lines.push('  }');
+    lines.push('  console.log("Zaor Batch complete!");');
     lines.push('}');
-    lines.push('console.log("Export complete!");');
 
     const fullScript = lines.join('\n');
     setScriptTxt(fullScript);
+    
+    const filename = `zaor_drawthings_script_${new Date().toISOString().slice(0,10)}.js`;
     try {
-      navigator.clipboard.writeText(fullScript);
-      alert('Draw Things Script copied to clipboard!');
-    } catch (e) {
-      /* fallback */
+      const file = new File([fullScript], filename, { type: 'text/javascript' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Draw Things Script',
+        });
+      } else if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'JavaScript File',
+            accept: { 'text/javascript': ['.js'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(fullScript);
+        await writable.close();
+      } else {
+        const blob = new Blob([fullScript], { type: 'text/javascript' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Save failed:', e);
+      }
     }
-  };
-
-  const L_I2V = (cb: (l: string[]) => void, lines: string[]) => {
-    const list: string[] = [];
-    cb(list);
-    lines.push(...list);
   };
 
   return (
     <Overlay>
-      <div className="p-5 flex flex-col gap-4 max-h-[88vh] overflow-y-auto pr-1 select-none">
+      <div className="p-5 flex flex-col gap-4 max-h-[88vh] overflow-y-auto pr-1 select-none w-full max-w-lg">
         <div className="flex items-center justify-between">
           <h2 className="font-serif font-semibold text-xl text-[#c9b8e8] flex items-center gap-2">
-            <Cpu size={20} /> Draw Things Script Pipeline
+            <Cpu size={20} /> Draw Things Batch Director
           </h2>
           <button onClick={onClose} className="text-[#9a96a8] hover:text-[#c47a8a] cursor-pointer">
             <X size={18} />
           </button>
         </div>
         <p className="text-xs text-[#9a96a8] -mt-2 leading-relaxed">
-          Generates a script for rendering high-fidelity video sets locally inside the offline Draw Things app.
+          This will generate a JavaScript macro for Draw Things. When run inside Draw Things, it will pop up an interactive UI allowing you to set parameters and switch models (via Cloud Compute or local) <strong className="text-white">frame-by-frame</strong>.
         </p>
 
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1577,52 +1663,54 @@ const ExportDrawThingsModal = ({ Overlay, onClose, storyboardRatio, storyboardFr
               onChange={(e: any) => setMode(e.target.value)}
               className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#9a96a8] outline-none"
             >
+              <option value="t2i">Text to Image (T2I)</option>
+              <option value="t2v">Prose Video (T2V)</option>
               <option value="i2v">Animate Frame images (I2V)</option>
-              <option value="t2v">Prose-Only triggers (T2V)</option>
             </select>
           </div>
           <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Draw Things Model</label>
+            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Primary Model Preset</label>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#9a96a8] outline-none"
             >
-              <option value="wan-ti2v-5b">Wan 2.2 TI2V 5B (Light)</option>
-              <option value="wan-i2v-14b-480">Wan v2.1 14B 480p</option>
-              <option value="ltx-distilled-720">LTX-2.3 22B Distilled</option>
+              <option value="Keep Current GUI Model">Keep Current GUI Model</option>
+              <option value="sd3-large-turbo-3.5">SD3 Large Turbo</option>
+              <option value="wan-2.1-14b-t2v-fusionx">Wan v2.1 14B</option>
+              <option value="ltx-2.3-22b-distilled-exact">LTX-2.3 Distilled</option>
             </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="flex flex-col gap-0.5 mt-1">
+          <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Master Negative Prompt</label>
+          <textarea
+            value={negativePrompt}
+            onChange={(e) => setNegativePrompt(e.target.value)}
+            className="w-full bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-xs text-[#9a96a8] outline-none h-16 resize-none"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs mt-1">
           <div className="flex flex-col gap-0.5">
             <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Target Resolution</label>
             <select
               value={res}
               onChange={(e) => setRes(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#9a96a8] outline-none"
+              className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#f0ece4] outline-none font-mono"
             >
               {sizes.map(s => (
-                <option key={s} value={s}>{s.replace('x', ' &times; ')}</option>
+                <option key={s} value={s}>{s.replace('x', ' × ')}</option>
               ))}
             </select>
           </div>
           <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Frames per Clip</label>
-            <input
-              type="number"
-              value={frames}
-              onChange={(e) => setFrames(parseInt(e.target.value) || 81)}
-              className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#f0ece4] outline-none text-center"
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Steps</label>
+            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Default Steps per shot</label>
             <input
               type="number"
               value={steps}
-              onChange={(e) => setSteps(parseInt(e.target.value) || 8)}
+              onChange={(e) => setSteps(parseInt(e.target.value) || 20)}
               className="bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-[#f0ece4] outline-none text-center"
             />
           </div>
@@ -1630,32 +1718,18 @@ const ExportDrawThingsModal = ({ Overlay, onClose, storyboardRatio, storyboardFr
 
         <button
           onClick={compileScript}
-          className="w-full bg-[#c9b8e8] text-[#1a1a2e] hover:bg-[#c9b8e8]/90 rounded-xl p-2.5 text-xs font-bold cursor-pointer transition-colors"
+          className="w-full bg-[#c9b8e8] text-[#1a1a2e] hover:bg-[#c9b8e8]/90 rounded-xl p-2.5 text-xs font-bold cursor-pointer transition-colors mt-2"
         >
-          ⧉ Compile DT Script & Copy
+          <Save size={14} className="inline mr-1 -mt-0.5" /> Compile DT Interactive Script
         </button>
 
         {scriptTxt && (
           <textarea
             readOnly
             value={scriptTxt}
-            className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2.5 text-[9px] text-[#f0ece4] font-mono h-24 outline-none resize-none"
+            className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2.5 text-[9px] text-[#f0ece4] font-mono h-24 outline-none resize-none mt-2"
           />
         )}
-
-        <details className="text-xs text-[#9a96a8]/80 leading-relaxed border border-white/5 rounded-lg p-2">
-          <summary className="cursor-pointer text-[#c9b8e8] font-semibold select-none flex items-center gap-1">
-            Running instructions
-          </summary>
-          <ol className="list-decimal pl-4 pr-1 mt-1.5 flex flex-col gap-1 text-[11px]">
-            {mode === 'i2v' && (
-              <li>Export and name frames sequentially inside pictures database directory (shot_01.png, shot_02.png etc).</li>
-            )}
-            <li>Turn Cloud compute mode ON.</li>
-            <li>In the steps tab, choose Scripts &rarr; Add script and paste the code segment.</li>
-            <li>Run the compilation. View the result files inside movie export structures.</li>
-          </ol>
-        </details>
       </div>
     </Overlay>
   );
