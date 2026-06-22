@@ -1309,11 +1309,16 @@ export default function App() {
         })
       });
 
-      if (!res.ok) throw new Error('API down');
+      if (!res.ok) {
+        const errData = await res.text();
+        console.error('API Error:', res.status, errData);
+        throw new Error(`API returned ${res.status}: ${errData}`);
+      }
       const data = await res.json();
       return (data.choices?.[0]?.message?.content || '').trim();
-    } catch {
-      alert('Generation failed.');
+    } catch (e: any) {
+      console.error(e);
+      alert(`Generation failed. ${e.message}`);
       throw new Error('Generation failed');
     }
   };

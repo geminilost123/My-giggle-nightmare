@@ -1119,10 +1119,10 @@ const HelpMeWritePopover = ({ onApply, contextType, existingValue, extraContext,
              className="bg-[#1a1a2e] text-xs text-[#f0ece4] border border-white/10 p-1.5 rounded outline-none w-full"
            />
            <div className="flex gap-2 justify-between mt-1">
-             <button onClick={() => setIsOpen(false)} className="text-[10px] text-[#9a96a8] hover:text-white px-1 cursor-pointer">Cancel</button>
+             <button type="button" onClick={() => setIsOpen(false)} className="text-[10px] text-[#9a96a8] hover:text-white px-1 cursor-pointer">Cancel</button>
              <div className="flex gap-1.5">
-               <button onClick={() => handleExecute('random')} disabled={isWriting} className="text-[10px] text-[#9a96a8] bg-[#1a1a2e] hover:bg-white/10 px-2 py-1 rounded cursor-pointer disabled:opacity-50">Random</button>
-               <button onClick={() => handleExecute()} disabled={isWriting || !hint.trim()} className="text-[10px] font-bold text-[#1a1a2e] bg-[#c9b8e8] hover:bg-white px-2 py-1 rounded cursor-pointer disabled:opacity-50 transition-colors">
+               <button type="button" onClick={() => handleExecute('random')} disabled={isWriting} className="text-[10px] text-[#9a96a8] bg-[#1a1a2e] hover:bg-white/10 px-2 py-1 rounded cursor-pointer disabled:opacity-50">Random</button>
+               <button type="button" onClick={() => handleExecute()} disabled={isWriting || !hint.trim()} className="text-[10px] font-bold text-[#1a1a2e] bg-[#c9b8e8] hover:bg-white px-2 py-1 rounded cursor-pointer disabled:opacity-50 transition-colors">
                  {isWriting ? 'Writing...' : 'Write'}
                </button>
              </div>
