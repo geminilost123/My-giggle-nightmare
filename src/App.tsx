@@ -258,7 +258,12 @@ export default function App() {
   // Active threads lists update helper
   const updateThreadsList = (updatedList: Thread[]) => {
     setThreads(updatedList);
-    localStorage.setItem('gs_threads', JSON.stringify(updatedList));
+    try {
+      localStorage.setItem('gs_threads', JSON.stringify(updatedList));
+    } catch (err) {
+      console.error("Storage limit exceeded or quota full", err);
+      alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
+    }
     recalcStorageSize();
   };
 
@@ -271,13 +276,18 @@ export default function App() {
         }
         return t;
       });
-      try {
-        localStorage.setItem('gs_threads', JSON.stringify(newList));
-      } catch (err) {
-        console.error("Storage limit exceeded or quota full", err);
-        alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
-      }
-      setTimeout(recalcStorageSize, 0); // Decouple from render cycle
+      
+      // Defer side-effects so React updater remains pure
+      setTimeout(() => {
+        try {
+          localStorage.setItem('gs_threads', JSON.stringify(newList));
+        } catch (err) {
+          console.error("Storage limit exceeded or quota full", err);
+          alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
+        }
+        recalcStorageSize();
+      }, 0);
+      
       return newList;
     });
   };
@@ -899,7 +909,7 @@ export default function App() {
   };
 
   // Storyboard Director checks & parse sequence
-  const executeStoryDirectorPass = async (userBeat: string, aiStoryReply: string) => {
+  const executeStoryDirectorPass = async (userBeat: string, aiStoryReply: string, force: boolean = false) => {
     if (!keys.apiKey) return;
     try {
       const guide = directorModelGuide(storyboardModel);
@@ -909,6 +919,10 @@ export default function App() {
 
       if (activeThread?.setup?.style) {
         system += `\n\nCRITICAL ENFORCED AESTHETIC STYLE: ${activeThread.setup.style}. CRITICAL RULE: Make sure all your image prompts adopt terminology that supports this style. (e.g. if the style is "watercolor", do NOT use terms like "35mm photograph" or "cinematic lighting").`;
+      }
+
+      if (force) {
+        system += `\n\nCRITICAL OVERRIDE: The user has manually requested a frame generation for this exact beat. You MUST output FRAME: yes and provide a vivid IMAGE_PROMPT and VIDEO_PROMPT.`;
       }
 
       const castKnownStr = activeThread && activeThread.cast?.length > 0
@@ -939,7 +953,7 @@ export default function App() {
 
       // Match block parameters
       const frameMatch = blockText.match(/FRAME:\s*yes/i);
-      if (!frameMatch) return;
+      if (!frameMatch && !force) return;
 
       const sec = (name: string) => {
         const re = new RegExp(name + ':\\s*([\\s\\S]*?)(?=\\n\\s*(?:FRAME|REASON|IMAGE_PROMPT|VIDEO_PROMPT|CAST):|$)', 'i');
@@ -1861,7 +1875,7 @@ export default function App() {
               }
               setIsLoading(true);
               try {
-                await executeStoryDirectorPass(userPrompt, m.content || "");
+                await executeStoryDirectorPass(userPrompt, m.content || "", true);
               } catch (e: any) {
                 const errCard: Message = { role: 'assistant', type: 'error', content: e.message };
                 updateCurrentThread(t => ({ ...t, messages: [...t.messages, errCard] }));
