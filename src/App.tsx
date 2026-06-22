@@ -1849,6 +1849,27 @@ export default function App() {
             setPendingCastImage({ src: m.src, alt: m.alt || '' });
             setActiveModal('cast');
           }}
+          onForceFrame={async (m) => {
+            if (activeThread) {
+              const msgIndex = activeThread.messages.indexOf(m);
+              let userPrompt = "Continued scene...";
+              for (let i = msgIndex - 1; i >= 0; i--) {
+                if (activeThread.messages[i].role === 'user' && activeThread.messages[i].type === 'text') {
+                  userPrompt = activeThread.messages[i].content || "Continued scene...";
+                  break;
+                }
+              }
+              setIsLoading(true);
+              try {
+                await executeStoryDirectorPass(userPrompt, m.content || "");
+              } catch (e: any) {
+                const errCard: Message = { role: 'assistant', type: 'error', content: e.message };
+                updateCurrentThread(t => ({ ...t, messages: [...t.messages, errCard] }));
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          }}
         />
 
         {/* Controller Input Row */}

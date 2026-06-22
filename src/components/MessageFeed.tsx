@@ -25,6 +25,7 @@ interface MessageFeedProps {
   editModelsHtml: string; // fallback select markup if needed, but we can write react selects directly!
   onRetryFrame?: (m: Message) => void;
   onUseAsCast?: (m: Message) => void;
+  onForceFrame?: (m: Message) => void;
 }
 
 export const MessageFeed: React.FC<MessageFeedProps> = ({
@@ -45,7 +46,8 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   onRetryVideo,
   onSaveToFiles,
   onRetryFrame,
-  onUseAsCast
+  onUseAsCast,
+  onForceFrame
 }) => {
   if (messages.length === 0) {
     return (
@@ -175,7 +177,8 @@ const PEMessageGroupCard = ({
   onSaveToFiles,
   isLoading,
   onRetryFrame,
-  onUseAsCast
+  onUseAsCast,
+  onForceFrame
 }: any) => {
   const [isOpen, setIsOpen] = useState<boolean>(isPeModeActive);
 
@@ -240,6 +243,7 @@ const PEMessageGroupCard = ({
               isLoading={isLoading}
               onRetryFrame={onRetryFrame}
               onUseAsCast={onUseAsCast}
+              onForceFrame={onForceFrame}
             />
           ))}
         </div>
@@ -254,7 +258,7 @@ const MessageCard = ({
   m, onRetryText, onAnimateImage, onEditImage, styleLockActive, lockedStyle,
   onPinForPE, pinnedPeUrl, activeTargetUrl, onSetEditTarget, onCloudSave,
   onGrabLastFrame, onRetryVideo, onSaveToFiles, isLoading,
-  onRetryFrame, onUseAsCast
+  onRetryFrame, onUseAsCast, onForceFrame
 }: any) => {
   const isUser = m.role === 'user';
 
@@ -271,6 +275,7 @@ const MessageCard = ({
           role={m.role} 
           text={m.type === 'error' ? `Error: ${m.content}` : m.content} 
           onRetry={m.type === 'error' ? undefined : onRetryText} 
+          onForceFrame={m.type === 'error' ? undefined : (() => onForceFrame?.(m))}
         />
       )}
 
@@ -337,7 +342,7 @@ const MessageCard = ({
 };
 
 // ── 1. Text Message ──
-const TextMessage: React.FC<{ role: string; text: string; onRetry?: () => void }> = ({ role, text, onRetry }) => {
+const TextMessage: React.FC<{ role: string; text: string; onRetry?: () => void; onForceFrame?: () => void }> = ({ role, text, onRetry, onForceFrame }) => {
   const [copied, setCopied] = useState<boolean>(false);
 
   const handleCopy = async () => {
@@ -366,6 +371,11 @@ const TextMessage: React.FC<{ role: string; text: string; onRetry?: () => void }
         {role === 'assistant' && onRetry && (
           <button className="text-[11px] text-[#9a96a8] hover:text-white" onClick={onRetry}>
             ↺ Retry
+          </button>
+        )}
+        {role === 'assistant' && onForceFrame && (
+          <button className="text-[11px] text-[#9a96a8] hover:text-[#c9b8e8]" onClick={onForceFrame}>
+            🎬 Draw Frame
           </button>
         )}
       </div>
