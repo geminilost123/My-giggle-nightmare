@@ -32,10 +32,10 @@ export default function App() {
 
   // Api Keys & Local Storage credentials
   const [keys, setKeys] = useState(() => {
-    let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-latest');
-    if (chatStr === 'grok-beta') {
-       chatStr = 'grok-2-latest';
-       localStorage.setItem('xai_chat_model', 'grok-2-latest');
+    let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-1212');
+    if (chatStr === 'grok-beta' || chatStr === 'grok-2-latest') {
+       chatStr = 'grok-2-1212';
+       localStorage.setItem('xai_chat_model', 'grok-2-1212');
     }
     return {
       apiKey: resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || ''),
@@ -57,6 +57,7 @@ export default function App() {
   const [prompt, setPrompt] = useState<string>('');
   const [mode, setMode] = useState<'chat' | 'image' | 'video' | 'enhance' | 'edit'>('chat');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [pendingCastImage, setPendingCastImage] = useState<{ src: string, alt: string } | null>(null);
 
   // LoRA State
   const [loras, setLoras] = useState<LoRA[]>([]);
@@ -69,9 +70,9 @@ export default function App() {
   const [lockedStyle, setLockedStyle] = useState<string>('');
 
   useEffect(() => {
-    if (keys.chatModel === 'grok-beta') {
-      setKeys(k => ({ ...k, chatModel: 'grok-2-latest' }));
-      try { localStorage.setItem('xai_chat_model', 'grok-2-latest'); } catch (err) {}
+    if (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') {
+      setKeys(k => ({ ...k, chatModel: 'grok-2-1212' }));
+      try { localStorage.setItem('xai_chat_model', 'grok-2-1212'); } catch (err) {}
     }
   }, [keys.chatModel]);
 
@@ -466,7 +467,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
       body: JSON.stringify({
-        model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
+        model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
         messages: messagesPayload,
         max_tokens: 2048
       })
@@ -916,7 +917,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
+          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: contentPrompt }
@@ -960,37 +961,8 @@ export default function App() {
   };
 
   const mergeCastRoster = (castBlock: string) => {
-    const lines = castBlock.split('\n');
-    const existing = activeThread ? [...activeThread.cast] : [];
-    const seen = new Set(existing.map(c => c.name.toLowerCase()));
-
-    lines.forEach(l => {
-      const clean = l.replace(/^[-*•]\s*/, '').trim();
-      if (!clean || /^none$/i.test(clean)) return;
-
-      let name = '';
-      let desc = '';
-
-      const dashIdx = clean.indexOf('—');
-      const colIdx = clean.indexOf(':');
-
-      if (dashIdx !== -1) {
-        name = clean.slice(0, dashIdx).trim();
-        desc = clean.slice(dashIdx + 1).trim();
-      } else if (colIdx !== -1) {
-        name = clean.slice(0, colIdx).trim();
-        desc = clean.slice(colIdx + 1).trim();
-      } else {
-        name = clean;
-      }
-
-      if (name && !seen.has(name.toLowerCase())) {
-        existing.push({ name, desc });
-        seen.add(name.toLowerCase());
-      }
-    });
-
-    updateCurrentThread(t => ({ ...t, cast: existing }));
+    // Disabled automatic guessing of cast characters based on user feedback.
+    // Characters must be added manually or dynamically via frame generation.
   };
 
   const executeStoryboardFrameCompile = async (imagePrompt: string, videoPrompt: string, reason: string) => {
@@ -1230,7 +1202,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
+          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
           temperature: 0.6,
           max_tokens: 500
@@ -1280,32 +1252,37 @@ export default function App() {
 
       let sys = '';
       let prompt = '';
+      let max_tokens = 300;
 
       if (contextType === 'character') {
-        sys = 'Generate a detailed but concise single-paragraph physical profile character description matching the provided hint (sex, eye/hair shapes, clothing styles, age). Output the description directly with no conversational filler.';
-        prompt = `Character Name: ${extraContext || 'Unknown'}\nExisting details: ${existingValue || '(none)'}\n\nUser Hint: ${promptHint === 'random' ? 'Randomize details but fit a general roleplay context' : promptHint}\n\nRecent game logs (optional reference):\n${refLogs}`;
+        sys = 'Generate a detailed but concise single-paragraph character physical description (eye/hair shapes, clothing, age). Output the description directly with NO conversational filler. MAX 40 words.';
+        prompt = `Character Name: ${extraContext || 'Unknown'}\nExisting details: ${existingValue || '(none)'}\n\nRecent game logs (optional reference):\n${refLogs}`;
+        max_tokens = 75;
       } else if (contextType === 'premise') {
-        sys = 'Generate a compelling story premise or campaign setting. Output only the premise directly (no intro/outro).';
-        prompt = `Existing premise: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a totally random unique scenario.' : promptHint}`;
+        sys = 'Generate a compelling story premise or campaign setting. Output only the premise directly (no intro/outro). MAX 50 words.';
+        prompt = `Existing premise: ${existingValue || '(none)'}`;
+        max_tokens = 100;
       } else if (contextType === 'tone') {
-        sys = 'Generate a concise description of a story tone or mood. Output only the tone value directly.';
-        prompt = `Existing tone: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a random evocative tone.' : promptHint}`;
+        sys = 'Generate a concise description of a story tone or mood. Output only the tone directly. MAX 6 words.';
+        prompt = `Existing tone: ${existingValue || '(none)'}`;
+        max_tokens = 15;
       } else if (contextType === 'style') {
-        sys = 'Generate a concise aesthetic style directive for image generation. Output only the style directly (e.g. "dark fantasy watercolor", "1980s anime", "cinematic lighting").';
-        prompt = `Existing style: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a random interesting visual aesthetic.' : promptHint}`;
+        sys = 'Generate a concise aesthetic style directive for image generation. Output only the style directly (e.g. "dark fantasy watercolor", "1980s anime", "cinematic lighting"). MAX 10 words.';
+        prompt = `Existing style: ${existingValue || '(none)'}`;
+        max_tokens = 25;
       }
 
       const res = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: keys.chatModel === 'grok-beta' ? 'grok-2-latest' : (keys.chatModel || 'grok-2-latest'),
+          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [
             { role: 'system', content: sys },
             { role: 'user', content: prompt }
           ],
-          max_tokens: 300,
-          temperature: promptHint === 'random' ? 0.9 : 0.7
+          max_tokens,
+          temperature: 0.8
         })
       });
 
@@ -1833,16 +1810,7 @@ export default function App() {
             }
           }}
           onUseAsCast={async (m) => {
-            // Find existing character matching the latest cast sheets, or create a generic temporary one to hold this image
-            // Actually, we could just trigger add character modal with the image populated.
-            // For now, let's just make it add a default character record named "New Character".
-            const genericDesc = `Character based on image context: ${m.alt || ''}`;
-            const newChar: Character = {
-              name: 'New Character (Auto)',
-              desc: genericDesc.slice(0, 150) + '...',
-              imageUrl: m.src
-            };
-            handleAddCharacter(newChar);
+            setPendingCastImage({ src: m.src, alt: m.alt || '' });
             setActiveModal('cast');
           }}
         />
@@ -2057,6 +2025,8 @@ export default function App() {
           localStorage.setItem('zaor_sb_para', val.toString());
         }}
         cast={cast}
+        pendingCastImage={pendingCastImage}
+        onConsumePendingImage={() => setPendingCastImage(null)}
         onAddCharacter={handleAddCharacter}
         onUpdateCharacterDesc={handleUpdateCharacterDesc}
         onUpdateCharacterImage={handleUpdateCharacterImage}

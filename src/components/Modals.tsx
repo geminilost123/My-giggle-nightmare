@@ -56,6 +56,8 @@ interface ModalsProps {
   onUpdateCharacterImage: (index: number, imageUrl: string) => void;
   onDeleteCharacter: (index: number) => void;
   onHelpWriteField: (promptHint: string, contextType: 'premise' | 'tone' | 'style' | 'character', existingValue: string, extraContext?: string) => Promise<string>;
+  pendingCastImage?: { src: string, alt: string } | null;
+  onConsumePendingImage?: () => void;
 
   // Story Setup
   setup: StorySetup;
@@ -111,6 +113,8 @@ export const Modals: React.FC<ModalsProps> = ({
   onUpdateCharacterImage,
   onDeleteCharacter,
   onHelpWriteField,
+  pendingCastImage,
+  onConsumePendingImage,
   setup,
   onSaveSetup,
   onSerializeGame,
@@ -208,6 +212,8 @@ export const Modals: React.FC<ModalsProps> = ({
           onUpdateCharacterImage={onUpdateCharacterImage}
           onDeleteCharacter={onDeleteCharacter}
           onHelpWriteField={onHelpWriteField}
+          pendingCastImage={pendingCastImage}
+          onConsumePendingImage={onConsumePendingImage}
         />
       )}
 
@@ -1073,22 +1079,15 @@ const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStory
   );
 };
 
-// HelpMeWrite Popover Component
-const HelpMeWritePopover = ({ onApply, contextType, existingValue, extraContext, onHelpWriteField }: any) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [hint, setHint] = useState('');
+// HelpMeWrite Inline Action Component
+const HelpMeWriteAction = ({ onApply, contextType, existingValue, extraContext, onHelpWriteField }: any) => {
   const [isWriting, setIsWriting] = useState(false);
 
-  const handleExecute = async (overrideHint?: string) => {
-    const finalHint = overrideHint || hint;
-    if (!finalHint.trim() && !overrideHint) return;
-    
+  const handleExecute = async () => {
     setIsWriting(true);
     try {
-      const result = await onHelpWriteField(finalHint, contextType, existingValue, extraContext);
+      const result = await onHelpWriteField('', contextType, existingValue, extraContext);
       if (result) onApply(result);
-      setIsOpen(false);
-      setHint('');
     } catch (e) {
       console.error(e);
     } finally {
@@ -1097,44 +1096,19 @@ const HelpMeWritePopover = ({ onApply, contextType, existingValue, extraContext,
   };
 
   return (
-    <div className="relative inline-block ml-1 h-3 flex items-center justify-center">
-      {!isOpen ? (
-        <button 
-          type="button" 
-          onClick={() => setIsOpen(true)}
-          className="text-[10px] text-[#c9b8e8] bg-[#c9b8e8]/5 hover:bg-[#c9b8e8]/20 px-[5px] py-[1px] rounded transition-colors flex items-center gap-1 font-medium select-none overflow-visible whitespace-nowrap -mt-[1px]"
-        >
-          <Sparkles size={9}/> Help Write
-        </button>
-      ) : (
-        <div className="absolute top-full left-0 z-50 bg-[#252538] border border-white/10 p-2 rounded-xl shadow-xl w-64 mt-2 animate-in fade-in duration-100 flex flex-col gap-2">
-           <span className="text-[10px] text-[#9a96a8] font-medium leading-tight">Hint prompt (e.g. "scary setting", "office worker")</span>
-           <input 
-             autoFocus
-             type="text"
-             value={hint}
-             onChange={e => setHint(e.target.value)}
-             placeholder="Idea hint..."
-             onKeyDown={e => e.key === 'Enter' && handleExecute()}
-             className="bg-[#1a1a2e] text-xs text-[#f0ece4] border border-white/10 p-1.5 rounded outline-none w-full"
-           />
-           <div className="flex gap-2 justify-between mt-1">
-             <button type="button" onClick={() => setIsOpen(false)} className="text-[10px] text-[#9a96a8] hover:text-white px-1 cursor-pointer">Cancel</button>
-             <div className="flex gap-1.5">
-               <button type="button" onClick={() => handleExecute('random')} disabled={isWriting} className="text-[10px] text-[#9a96a8] bg-[#1a1a2e] hover:bg-white/10 px-2 py-1 rounded cursor-pointer disabled:opacity-50">Random</button>
-               <button type="button" onClick={() => handleExecute()} disabled={isWriting || !hint.trim()} className="text-[10px] font-bold text-[#1a1a2e] bg-[#c9b8e8] hover:bg-white px-2 py-1 rounded cursor-pointer disabled:opacity-50 transition-colors">
-                 {isWriting ? 'Writing...' : 'Write'}
-               </button>
-             </div>
-           </div>
-        </div>
-      )}
-    </div>
+    <button 
+      type="button" 
+      disabled={isWriting}
+      onClick={handleExecute}
+      className="ml-2 text-[9px] font-bold tracking-wider uppercase text-[#c9b8e8]/70 hover:text-[#c9b8e8] transition-colors disabled:opacity-50 cursor-pointer"
+    >
+      {isWriting ? 'Writing...' : 'Auto-Fill'}
+    </button>
   );
 };
 
 // CAST SHEETS MODAL
-const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteField }: any) => {
+const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteField, pendingCastImage, onConsumePendingImage }: any) => {
   const [characterName, setCharacterName] = useState('');
   const [characterDesc, setCharacterDesc] = useState('');
   const [newCharacterImage, setNewCharacterImage] = useState('');
@@ -1166,8 +1140,34 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
           Characters for the current story are saved here. Optional visual references are kept local to keep consistent generated frames.
         </p>
 
+        {pendingCastImage && (
+          <div className="bg-[#c9b8e8]/10 border border-[#c9b8e8]/30 rounded-xl p-3 flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <img src={pendingCastImage.src} className="w-10 h-10 rounded border border-[#c9b8e8]/50 object-cover object-top filter brightness-110" alt="Pending Frame" />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-[#f0ece4]">Frame Image Ready to Assign</span>
+                <span className="text-[10px] text-[#9a96a8]">Select an existing character below or create a new one.</span>
+              </div>
+            </div>
+            <button 
+              type="button"
+              className="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg bg-[#c9b8e8] text-[#1a1a2e] hover:bg-white transition-colors flex-shrink-0"
+              onClick={() => {
+                onAddCharacter({
+                  name: 'Dynamic Character',
+                  desc: 'New cast auto-tracked from frame.',
+                  imageUrl: pendingCastImage.src
+                });
+                onConsumePendingImage?.();
+              }}
+            >
+              Create New
+            </button>
+          </div>
+        )}
+
         {/* Existing List */}
-        <div className="flex-1 overflow-y-auto flex flex-col gap-2 max-h-[260px] bg-[#1a1a2e]/20 border border-white/5 rounded-xl p-2">
+        <div className="flex-1 overflow-y-auto flex flex-col gap-2 max-h-[300px] bg-[#1a1a2e]/20 border border-white/5 rounded-xl p-2">
           {cast.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#9a96a8]/50 italic">
               No cast characters initialized. Draft names manually below or play the game to expand automatic indexing.
@@ -1234,20 +1234,32 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                     className="w-full bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-xs text-[#f0ece4] outline-none resize-none h-14 focus:border-[#c9b8e8]"
                   />
                   <div className="flex items-center gap-2 mt-0.5">
-                    <HelpMeWritePopover
+                    <HelpMeWriteAction
                       contextType="character"
                       existingValue={c.desc}
                       extraContext={c.name}
                       onHelpWriteField={onHelpWriteField}
                       onApply={(val: string) => onUpdateCharacterDesc(i, val)}
                     />
-                    <input
-                      type="text"
-                      placeholder="Paste Image URL..."
-                      value={c.imageUrl || ''}
-                      onChange={(e) => onUpdateCharacterImage(i, e.target.value)}
-                      className="flex-1 bg-[#1a1a2e] border border-white/5 rounded p-1 px-2 text-[10px] text-[#9a96a8] placeholder-[#9a96a8]/30 outline-none focus:border-[#c9b8e8]"
-                    />
+                    {pendingCastImage ? (
+                       <button
+                         onClick={() => {
+                           onUpdateCharacterImage(i, pendingCastImage.src);
+                           onConsumePendingImage?.();
+                         }}
+                         className="flex-1 bg-[#c9b8e8]/20 hover:bg-[#c9b8e8]/30 hover:text-white border outline-none border-[#c9b8e8]/50 rounded p-1 px-2 text-[10px] font-medium text-[#c9b8e8] transition-colors cursor-pointer"
+                       >
+                         Assign Image
+                       </button>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="Paste Image URL..."
+                        value={c.imageUrl || ''}
+                        onChange={(e) => onUpdateCharacterImage(i, e.target.value)}
+                        className="flex-1 bg-[#1a1a2e] border border-white/5 rounded p-1 px-2 text-[10px] text-[#9a96a8] placeholder-[#9a96a8]/30 outline-none focus:border-[#c9b8e8]"
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1363,7 +1375,7 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup, onHelpWr
           <div className="flex flex-col gap-0.5">
              <div className="flex items-center">
                <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Premise & Scene Motivations</label>
-               <HelpMeWritePopover contextType="premise" existingValue={setup.premise} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, premise: val })} />
+               <HelpMeWriteAction contextType="premise" existingValue={setup.premise} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, premise: val })} />
              </div>
             <textarea
               placeholder="What core conflict, premise or situation anchors this story campaign?"
@@ -1376,7 +1388,7 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup, onHelpWr
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center">
               <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Aesthetic Style / Medium</label>
-              <HelpMeWritePopover contextType="style" existingValue={setup.style} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, style: val })} />
+              <HelpMeWriteAction contextType="style" existingValue={setup.style} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, style: val })} />
             </div>
             <input
               type="text"
@@ -1390,7 +1402,7 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup, onHelpWr
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center">
               <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Tone</label>
-              <HelpMeWritePopover contextType="tone" existingValue={setup.tone} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, tone: val })} />
+              <HelpMeWriteAction contextType="tone" existingValue={setup.tone} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, tone: val })} />
             </div>
             <input
               type="text"
