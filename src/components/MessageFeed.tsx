@@ -374,7 +374,7 @@ const TextMessage: React.FC<{ role: string; text: string; onRetry?: () => void; 
           </button>
         )}
         {role === 'assistant' && onForceFrame && (
-          <button className="text-[11px] text-[#9a96a8] hover:text-[#c9b8e8]" onClick={onForceFrame}>
+          <button className="text-[11px] text-[#9a96a8] hover:text-[#c9b8e8]" onClick={() => onForceFrame()}>
             🎬 Draw Frame
           </button>
         )}

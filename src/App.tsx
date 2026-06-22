@@ -25,6 +25,17 @@ import {
   BookOpen, Save, Cpu, RefreshCw, X, Check, HelpCircle, Trash2
 } from 'lucide-react';
 
+const safeLocalStorageSet = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    console.warn("Storage limit exceeded for key:", key, err.message);
+    if (key === 'gs_threads') {
+      alert("Local storage limit exceeded. Your latest content could not be saved persistently. Please free up space by deleting older chats or media.");
+    }
+  }
+};
+
 export default function App() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -258,12 +269,7 @@ export default function App() {
   // Active threads lists update helper
   const updateThreadsList = (updatedList: Thread[]) => {
     setThreads(updatedList);
-    try {
-      localStorage.setItem('gs_threads', JSON.stringify(updatedList));
-    } catch (err) {
-      console.error("Storage limit exceeded or quota full", err);
-      alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
-    }
+    safeLocalStorageSet('gs_threads', JSON.stringify(updatedList));
     recalcStorageSize();
   };
 
@@ -279,12 +285,7 @@ export default function App() {
       
       // Defer side-effects so React updater remains pure
       setTimeout(() => {
-        try {
-          localStorage.setItem('gs_threads', JSON.stringify(newList));
-        } catch (err) {
-          console.error("Storage limit exceeded or quota full", err);
-          alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
-        }
+        safeLocalStorageSet('gs_threads', JSON.stringify(newList));
         recalcStorageSize();
       }, 0);
       
@@ -910,7 +911,10 @@ export default function App() {
 
   // Storyboard Director checks & parse sequence
   const executeStoryDirectorPass = async (userBeat: string, aiStoryReply: string, force: boolean = false) => {
-    if (!keys.apiKey) return;
+    if (!keys.apiKey) {
+      if (force) throw new Error("xAI API key is missing. Required for director pass.");
+      return;
+    }
     try {
       const guide = directorModelGuide(storyboardModel);
       let system = DIRECTOR_SYSTEM
@@ -946,14 +950,23 @@ export default function App() {
         })
       });
 
-      if (!res.ok) return; // Silent discard so storytelling logic never crashes on parsing
+      if (!res.ok) {
+        if (force) {
+          const errText = await res.text();
+          throw new Error(`API returned ${res.status}: ${errText}`);
+        }
+        return; // Silent discard so storytelling logic never crashes on parsing
+      }
 
       const data = await res.json();
       const blockText = data.choices?.[0]?.message?.content || '';
 
       // Match block parameters
       const frameMatch = blockText.match(/FRAME:\s*yes/i);
-      if (!frameMatch && !force) return;
+      if (!frameMatch && !force) {
+        if (force) throw new Error("Director did not output FRAME: yes even when forced.");
+        return;
+      }
 
       const sec = (name: string) => {
         const re = new RegExp(name + ':\\s*([\\s\\S]*?)(?=\\n\\s*(?:FRAME|REASON|IMAGE_PROMPT|VIDEO_PROMPT|CAST):|$)', 'i');
@@ -972,9 +985,12 @@ export default function App() {
       }
 
       if (imagePrompt) {
-        await executeStoryboardFrameCompile(imagePrompt, videoPrompt, reason);
+        await executeStoryboardFrameCompile(imagePrompt, videoPrompt, reason, force);
+      } else {
+        if (force) throw new Error("Director generated no IMAGE_PROMPT. Output: " + blockText);
       }
-    } catch {
+    } catch (e: any) {
+      if (force) throw new Error("Story Director error: " + e.message);
       /* discard block issue silently */
     }
   };
@@ -984,7 +1000,7 @@ export default function App() {
     // Characters must be added manually or dynamically via frame generation.
   };
 
-  const executeStoryboardFrameCompile = async (imagePrompt: string, videoPrompt: string, reason: string) => {
+  const executeStoryboardFrameCompile = async (imagePrompt: string, videoPrompt: string, reason: string, force: boolean = false) => {
     try {
       let finalPrompt = imagePrompt;
       const setup = activeThread?.setup;
@@ -1001,7 +1017,10 @@ export default function App() {
         loras: reqLoras
       });
 
-      if (!outputImageUrl) return;
+      if (!outputImageUrl) {
+        if (force) throw new Error("Model returned empty image URL.");
+        return;
+      }
 
       const frameId = 'sbf_' + Date.now();
       const sbFrameMsg: Message = {
@@ -1019,7 +1038,8 @@ export default function App() {
       setActiveTargetUrl(outputImageUrl);
 
       updateCurrentThread(t => ({ ...t, messages: [...t.messages, sbFrameMsg] }));
-    } catch {
+    } catch (e: any) {
+      if (force) throw new Error(`Storyboard Engine Error: ${e.message}`);
       /* skip frame */
     }
   };
