@@ -545,6 +545,20 @@ export default function App() {
 
     const reqLoras = activeLorasList.map(l => ({ path: l.url, scale: l.scale }));
 
+    // Find ANY character match for IP-Adapter injection (identity preservation)
+    let imageRefUrl: string | undefined = undefined;
+    if (activeThread?.cast) {
+      for (const charObj of activeThread.cast) {
+        if (charObj.imageUrl && charObj.name) {
+          const re = new RegExp('\\b' + charObj.name + '\\b', 'i');
+          if (re.test(fullyStyledPrompt)) {
+            imageRefUrl = charObj.imageUrl;
+            break;
+          }
+        }
+      }
+    }
+
     const resArray: string[] = [];
 
     // Trigger count map
@@ -555,7 +569,8 @@ export default function App() {
         resolution: imageRes,
         steps: imageSteps,
         guidance: imageGuidance,
-        loras: reqLoras
+        loras: reqLoras,
+        imageReference: imageRefUrl
       });
       if (outputUrl) resArray.push(outputUrl);
     }
@@ -1010,11 +1025,26 @@ export default function App() {
       const activeLorasList = loras.filter(l => l.active && (!l.base || l.base === 'Other' || l.base === (MODEL_REGISTRY[storyboardModel]?.loraBase || '')));
       const reqLoras = activeLorasList.map(l => ({ path: l.url, scale: l.scale }));
 
+      // Find ANY character match for IP-Adapter injection (identity preservation) using whole-word matching
+      let imageRefUrl: string | undefined = undefined;
+      if (activeThread?.cast) {
+        for (const c of activeThread.cast) {
+          if (c.imageUrl && c.name) {
+            const re = new RegExp('\\b' + c.name + '\\b', 'i');
+            if (re.test(finalPrompt)) {
+              imageRefUrl = c.imageUrl;
+              break; // Standard implementation allows 1 IP-Adapter target safely per prompt
+            }
+          }
+        }
+      }
+
       const outputImageUrl = await callModel(storyboardModel, {
         prompt: finalPrompt,
         aspectRatio: storyboardRatio,
         resolution: '1K',
-        loras: reqLoras
+        loras: reqLoras,
+        imageReference: imageRefUrl
       });
 
       if (!outputImageUrl) {

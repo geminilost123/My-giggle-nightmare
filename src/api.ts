@@ -106,6 +106,9 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
+      if (p.imageReference) {
+        b.image_reference = { image: p.imageReference, weight: 0.85 };
+      }
       return b;
     }
   },
@@ -132,6 +135,9 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       };
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
+      }
+      if (p.imageReference) {
+        b.image_reference = { image: p.imageReference, weight: 0.85 };
       }
       return b;
     }
@@ -573,6 +579,7 @@ export async function callModel(modelId: string, params: {
   guidance?: number;
   loras?: { path: string; scale: number }[];
   image?: string;
+  imageReference?: string;
 }): Promise<string> {
   const m = MODEL_REGISTRY[modelId];
   if (!m) throw new Error('Unsupported model identifier.');

@@ -80,6 +80,19 @@ interface ModalsProps {
   onConfirmDelete: () => void;
 }
 
+export const ModalOverlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
+  <div
+    className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto select-none"
+    onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}
+  >
+    <div className="bg-[#252538] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in fade-in duration-200">
+      {children}
+    </div>
+  </div>
+);
+
 export const Modals: React.FC<ModalsProps> = ({
   activeModal,
   onClose,
@@ -129,18 +142,9 @@ export const Modals: React.FC<ModalsProps> = ({
 }) => {
   if (!activeModal) return null;
 
-  // Common Overlay Wrapper
-  const ModalOverlay: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div
-      className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto select-none"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-[#252538] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in fade-in duration-200">
-        {children}
-      </div>
-    </div>
+  // Render a stable wrapper for Overlay
+  const OverlayWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <ModalOverlay onClose={onClose}>{children}</ModalOverlay>
   );
 
   return (
