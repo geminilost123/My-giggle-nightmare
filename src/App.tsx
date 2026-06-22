@@ -271,7 +271,12 @@ export default function App() {
         }
         return t;
       });
-      localStorage.setItem('gs_threads', JSON.stringify(newList));
+      try {
+        localStorage.setItem('gs_threads', JSON.stringify(newList));
+      } catch (err) {
+        console.error("Storage limit exceeded or quota full", err);
+        alert("Local storage limit exceeded. This action could not be saved to cache. Please delete some chats or media.");
+      }
       setTimeout(recalcStorageSize, 0); // Decouple from render cycle
       return newList;
     });

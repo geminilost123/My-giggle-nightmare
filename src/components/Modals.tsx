@@ -1107,6 +1107,40 @@ const HelpMeWriteAction = ({ onApply, contextType, existingValue, extraContext, 
   );
 };
 
+// Image resizer utility to prevent QuotaExceededError in localStorage
+const resizeImageToDataUrl = (file: File, maxSize: number = 512): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 // CAST SHEETS MODAL
 const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteField, pendingCastImage, onConsumePendingImage }: any) => {
   const [characterName, setCharacterName] = useState('');
@@ -1190,16 +1224,11 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            if (event.target?.result) {
-                              onUpdateCharacterImage(i, event.target.result as string);
-                            }
-                          };
-                          reader.readAsDataURL(file);
+                          const resizedDataUrl = await resizeImageToDataUrl(file);
+                          onUpdateCharacterImage(i, resizedDataUrl);
                         }
                       }}
                     />
@@ -1282,16 +1311,11 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                        if (event.target?.result) {
-                          setNewCharacterImage(event.target.result as string);
-                        }
-                      };
-                      reader.readAsDataURL(file);
+                      const resizedDataUrl = await resizeImageToDataUrl(file);
+                      setNewCharacterImage(resizedDataUrl);
                     }
                   }}
                 />
