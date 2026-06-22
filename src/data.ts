@@ -174,7 +174,7 @@ Set FRAME: yes if ANY of these just appeared in the beat — a NEW character, a 
 When multiple triggers occur, choose ONE subject by this strict priority: (1) a wardrobe change, (2) a new female character, (3) a new male character, (4) the current action happening.
 
 If FRAME: yes, write:
-- IMAGE_PROMPT: a vivid {MODEL} text-to-image prompt depicting that exact moment, grounded in the story (who is present and what they look like, wardrobe, setting, lighting, mood, camera framing). {MODELGUIDE}
+- IMAGE_PROMPT: a vivid {MODEL} text-to-image prompt depicting that exact moment, grounded ONLY in the story text. CRITICAL RULE: DO NOT invent details, themes, or setting elements that are not explicitly described in the beat. DO NOT summarize the story. Instead, write a strictly visual literal description of who is present, what they look like, wardrobe, setting, lighting, mood, and camera framing based ONLY on the current beat. {MODELGUIDE}
 - VIDEO_PROMPT: a short Wan 2.2 image-to-video prompt describing the MOTION to animate that image (subject motion first, then camera). Describe motion, not appearance.
 - CAST: for any NEW character or wardrobe change, one line each: "Name — sex, approx age, hair, build, distinguishing features | wardrobe: ...". Use "none" if nothing changed.
 

@@ -79,6 +79,7 @@ export default function App() {
   const [storyboardOn, setStoryboardOn] = useState<boolean>(false);
   const [storyboardModel, setStoryboardModel] = useState<string>('chroma');
   const [storyboardRatio, setStoryboardRatio] = useState<string>('16:9');
+  const [storyParaLimit, setStoryParaLimit] = useState<number>(2);
 
   // Image & Video controls state
   const [imageModel, setImageModel] = useState<string>('aurora-simple');
@@ -156,6 +157,7 @@ export default function App() {
     setStoryboardOn(localStorage.getItem('zaor_sb_on') === '1');
     setStoryboardModel(localStorage.getItem('zaor_sb_model') || 'chroma');
     setStoryboardRatio(localStorage.getItem('zaor_sb_ratio') || '16:9');
+    setStoryParaLimit(parseInt(localStorage.getItem('zaor_sb_para') || '2', 10));
 
     // LoRAs
     try {
@@ -406,13 +408,17 @@ export default function App() {
   };
 
   const buildStorySetupSystem = (s: StorySetup | undefined) => {
-    if (!s) return '';
-    const parts = [];
-    if (s.premise) parts.push('PREMISE: ' + s.premise);
-    if (s.tone) parts.push('TONE: ' + s.tone);
-    if (s.characters) parts.push('STARTING CHARACTERS:\n' + s.characters);
-    if (!parts.length) return '';
-    return 'You are running an interactive story campaign for the user. Stay consistent with this setup context:\n\n' + parts.join('\n') + '\n\nNarrate vivid developments keeping matching tones. The user directs campaign turns, you act as storyteller.';
+    let parts = [];
+    if (s && s.premise) parts.push('PREMISE: ' + s.premise);
+    if (s && s.tone) parts.push('TONE: ' + s.tone);
+    
+    let baseStr = parts.length > 0
+      ? 'You are running an interactive story campaign for the user. Stay consistent with this setup context:\n\n' + parts.join('\n') + '\n\nNarrate vivid developments keeping matching tones. The user directs campaign turns, you act as storyteller.'
+      : 'You are running an interactive story campaign for the user. Narrate vivid developments. The user directs campaign turns, you act as storyteller.';
+      
+    baseStr += '\n\nCRITICAL AI STORY DIRECTIVE: Do NOT introduce ANY new characters into the story unless the user explicitly prompts for them or they are essential generic background extras. Stick to the current cast. If the user introduces a character, you may adopt them.';
+    
+    return baseStr;
   };
 
   // Text Completion Engine via direct xAI completions fetch
@@ -420,9 +426,13 @@ export default function App() {
     if (!activeThread) return;
 
     // Compose PE context or Setup directives
-    const sysPrompt = promptEngineerMode
+    const sysPromptBase = promptEngineerMode
       ? PE_SYSTEM_PROMPTS[peSelectedModel] || PE_SYSTEM_PROMPTS.aurora
       : buildStorySetupSystem(activeThread.setup);
+      
+    const sysPrompt = !promptEngineerMode && storyParaLimit > 0
+      ? sysPromptBase + `\n\nCRITICAL RULE: For pacing, limit your narration replies to a MAXIMUM of ${storyParaLimit} paragraphs. Do not write huge walls of text.`
+      : sysPromptBase;
 
     const historyPayload = activeThread.history.map(h => ({
       role: h.role,
@@ -887,9 +897,13 @@ export default function App() {
     if (!keys.apiKey) return;
     try {
       const guide = directorModelGuide(storyboardModel);
-      const system = DIRECTOR_SYSTEM
+      let system = DIRECTOR_SYSTEM
         .replace('{MODEL}', storyboardModel)
         .replace('{MODELGUIDE}', guide);
+
+      if (activeThread?.setup?.style) {
+        system += `\n\nCRITICAL ENFORCED AESTHETIC STYLE: ${activeThread.setup.style}. CRITICAL RULE: Make sure all your image prompts adopt terminology that supports this style. (e.g. if the style is "watercolor", do NOT use terms like "35mm photograph" or "cinematic lighting").`;
+      }
 
       const castKnownStr = activeThread && activeThread.cast?.length > 0
         ? '\n\nREUSE THESE CAST PROFILE DETAILS IN PROMPTS IF RETURNING CHARACTERS APPEAR:\n' +
@@ -1248,18 +1262,38 @@ export default function App() {
     }
   };
 
-  // Character descriptive autocomplete help AI completes
-  const handleCharacterAutoHelp = async (idx: number, charName: string, currentDesc: string, updateCb: (val: string) => void) => {
+  // Auto help text complete for various meta fields
+  const handleAutoHelpWrite = async (
+    promptHint: string,
+    contextType: 'premise' | 'tone' | 'style' | 'character',
+    existingValue: string,
+    extraContext?: string
+  ): Promise<string> => {
     if (!keys.apiKey) {
-      alert('xAI token missing.');
-      return;
+      alert('xAI token missing. Please set your xAI API Key in settings.');
+      throw new Error('Missing API Key');
     }
+
     try {
       const messagesPayload = getHistoryMessages();
       const refLogs = messagesPayload.slice(-6).map((m: any) => m.content).join('\n').slice(-1500);
 
-      const sys = 'Generate a detailed but concise single-paragraph physical profile description card matching characters present inside recent roleplay texts (sex, eye/hair shapes, clothing styles, age). Output description values only.';
-      const prompt = `Character Name: ${charName}\nExisting details: ${currentDesc || '(none)'}\n\nRecent game logs:\n${refLogs}`;
+      let sys = '';
+      let prompt = '';
+
+      if (contextType === 'character') {
+        sys = 'Generate a detailed but concise single-paragraph physical profile character description matching the provided hint (sex, eye/hair shapes, clothing styles, age). Output the description directly with no conversational filler.';
+        prompt = `Character Name: ${extraContext || 'Unknown'}\nExisting details: ${existingValue || '(none)'}\n\nUser Hint: ${promptHint === 'random' ? 'Randomize details but fit a general roleplay context' : promptHint}\n\nRecent game logs (optional reference):\n${refLogs}`;
+      } else if (contextType === 'premise') {
+        sys = 'Generate a compelling story premise or campaign setting. Output only the premise directly (no intro/outro).';
+        prompt = `Existing premise: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a totally random unique scenario.' : promptHint}`;
+      } else if (contextType === 'tone') {
+        sys = 'Generate a concise description of a story tone or mood. Output only the tone value directly.';
+        prompt = `Existing tone: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a random evocative tone.' : promptHint}`;
+      } else if (contextType === 'style') {
+        sys = 'Generate a concise aesthetic style directive for image generation. Output only the style directly (e.g. "dark fantasy watercolor", "1980s anime", "cinematic lighting").';
+        prompt = `Existing style: ${existingValue || '(none)'}\nUser Hint: ${promptHint === 'random' ? 'Generate a random interesting visual aesthetic.' : promptHint}`;
+      }
 
       const res = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
@@ -1271,18 +1305,16 @@ export default function App() {
             { role: 'user', content: prompt }
           ],
           max_tokens: 300,
-          temperature: 0.7
+          temperature: promptHint === 'random' ? 0.9 : 0.7
         })
       });
 
       if (!res.ok) throw new Error('API down');
       const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content || '';
-      if (reply) {
-        updateCb(reply.trim());
-      }
+      return (data.choices?.[0]?.message?.content || '').trim();
     } catch {
-      alert('Grok described generation failed.');
+      alert('Generation failed.');
+      throw new Error('Generation failed');
     }
   };
 
@@ -1541,7 +1573,7 @@ export default function App() {
   };
 
   const cast = activeThread ? activeThread.cast || [] : [];
-  const currentSetup = activeThread ? activeThread.setup || { premise: '', tone: '', style: '', characters: '' } : { premise: '', tone: '', style: '', characters: '' };
+  const currentSetup = activeThread ? activeThread.setup || { premise: '', tone: '', style: '' } : { premise: '', tone: '', style: '' };
 
   const handleSaveSetup = (sb: StorySetup) => {
     updateCurrentThread(t => ({ ...t, setup: sb }));
@@ -1682,6 +1714,20 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => {
+                      if(window.confirm("Are you sure you want to nuke the session? This will delete all threads, messages, and casts, but keep your API keys and LoRA settings.")) {
+                        setOverflowMenuOpen(false);
+                        setThreads([]);
+                        setCurrentThreadId(null);
+                        localStorage.setItem('zaor_threads', '[]');
+                        localStorage.removeItem('zaor_active_thread');
+                      }
+                    }}
+                    className="w-full text-left p-2.5 rounded-lg text-xs font-medium text-red-400 hover:bg-neutral-800/10 border-t border-white/5 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 size={12} /> Nuke Session
+                  </button>
+                  <button
+                    onClick={() => {
                       setOverflowMenuOpen(false);
                       window.location.reload();
                     }}
@@ -1770,6 +1816,30 @@ export default function App() {
           }}
           onSaveToFiles={onSaveToFiles}
           editModelsHtml=""
+          onRetryFrame={async (m) => {
+            setIsLoading(true);
+            try {
+              await executeStoryboardFrameCompile(m.alt || '', m.videoPrompt || '', m.reason || 'retry');
+            } catch (e: any) {
+              const errCard: Message = { role: 'assistant', type: 'error', content: e.message };
+              updateCurrentThread(t => ({ ...t, messages: [...t.messages, errCard] }));
+            } finally {
+              setIsLoading(false);
+            }
+          }}
+          onUseAsCast={async (m) => {
+            // Find existing character matching the latest cast sheets, or create a generic temporary one to hold this image
+            // Actually, we could just trigger add character modal with the image populated.
+            // For now, let's just make it add a default character record named "New Character".
+            const genericDesc = `Character based on image context: ${m.alt || ''}`;
+            const newChar: Character = {
+              name: 'New Character (Auto)',
+              desc: genericDesc.slice(0, 150) + '...',
+              imageUrl: m.src
+            };
+            handleAddCharacter(newChar);
+            setActiveModal('cast');
+          }}
         />
 
         {/* Controller Input Row */}
@@ -1976,12 +2046,17 @@ export default function App() {
           setStoryboardRatio(val);
           localStorage.setItem('zaor_sb_ratio', val);
         }}
+        storyParaLimit={storyParaLimit}
+        onChangeStoryParaLimit={(val: number) => {
+          setStoryParaLimit(val);
+          localStorage.setItem('zaor_sb_para', val.toString());
+        }}
         cast={cast}
         onAddCharacter={handleAddCharacter}
         onUpdateCharacterDesc={handleUpdateCharacterDesc}
         onUpdateCharacterImage={handleUpdateCharacterImage}
         onDeleteCharacter={handleDeleteCharacter}
-        onHelpWriteCharacter={handleCharacterAutoHelp}
+        onHelpWriteField={handleAutoHelpWrite}
         setup={currentSetup}
         onSaveSetup={handleSaveSetup}
         onSerializeGame={handleSerializeGame}

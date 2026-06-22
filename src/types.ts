@@ -30,7 +30,7 @@ export interface StorySetup {
   premise: string;
   tone: string;
   style: string;
-  characters: string;
+  characters?: string; // Kept as optional to avoid breaking old saves
 }
 
 export interface Thread {

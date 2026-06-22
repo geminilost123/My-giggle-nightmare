@@ -23,6 +23,8 @@ interface MessageFeedProps {
   onRetryVideo: (prompt: string, parentEngine: string, duration: number, res: string) => Promise<void>;
   onSaveToFiles: (src: string, altText: string) => void;
   editModelsHtml: string; // fallback select markup if needed, but we can write react selects directly!
+  onRetryFrame?: (m: Message) => void;
+  onUseAsCast?: (m: Message) => void;
 }
 
 export const MessageFeed: React.FC<MessageFeedProps> = ({
@@ -41,7 +43,9 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   onCloudSave,
   onGrabLastFrame,
   onRetryVideo,
-  onSaveToFiles
+  onSaveToFiles,
+  onRetryFrame,
+  onUseAsCast
 }) => {
   if (messages.length === 0) {
     return (
@@ -104,6 +108,8 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
               onRetryVideo={onRetryVideo}
               onSaveToFiles={onSaveToFiles}
               isLoading={isLoading}
+              onRetryFrame={onRetryFrame}
+              onUseAsCast={onUseAsCast}
             />
           );
         } else {
@@ -126,6 +132,8 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
               onRetryVideo={onRetryVideo}
               onSaveToFiles={onSaveToFiles}
               isLoading={isLoading}
+              onRetryFrame={onRetryFrame}
+              onUseAsCast={onUseAsCast}
             />
           );
         }
@@ -165,7 +173,9 @@ const PEMessageGroupCard = ({
   onGrabLastFrame,
   onRetryVideo,
   onSaveToFiles,
-  isLoading
+  isLoading,
+  onRetryFrame,
+  onUseAsCast
 }: any) => {
   const [isOpen, setIsOpen] = useState<boolean>(isPeModeActive);
 
@@ -228,6 +238,8 @@ const PEMessageGroupCard = ({
               onRetryVideo={onRetryVideo}
               onSaveToFiles={onSaveToFiles}
               isLoading={isLoading}
+              onRetryFrame={onRetryFrame}
+              onUseAsCast={onUseAsCast}
             />
           ))}
         </div>
@@ -241,7 +253,8 @@ const PEMessageGroupCard = ({
 const MessageCard = ({
   m, onRetryText, onAnimateImage, onEditImage, styleLockActive, lockedStyle,
   onPinForPE, pinnedPeUrl, activeTargetUrl, onSetEditTarget, onCloudSave,
-  onGrabLastFrame, onRetryVideo, onSaveToFiles, isLoading
+  onGrabLastFrame, onRetryVideo, onSaveToFiles, isLoading,
+  onRetryFrame, onUseAsCast
 }: any) => {
   const isUser = m.role === 'user';
 
@@ -307,6 +320,8 @@ const MessageCard = ({
           onCloud={onCloudSave}
           onSave={onSaveToFiles}
           isLoading={isLoading}
+          onRetryFrame={onRetryFrame}
+          onUseAsCast={onUseAsCast}
         />
       )}
 
@@ -701,7 +716,7 @@ const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, p
 };
 
 // ── 4. Storyboard Frame Message ──
-const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, isLoading }: any) => {
+const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, onRetryFrame, onUseAsCast, isLoading }: any) => {
   const [animOpen, setAnimOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [animEngine, setAnimEngine] = useState('aurora');
@@ -763,6 +778,22 @@ const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, isLoading 
         >
           ✎ Edit Frame
         </button>
+        {onRetryFrame && (
+          <button
+            onClick={() => onRetryFrame(m)}
+            className="px-3 py-1.5 bg-[#252538] border border-white/10 rounded-full text-[11px] text-[#9a96a8] hover:text-[#c9b8e8] transition-all cursor-pointer font-medium"
+          >
+            🔄 Retry Frame
+          </button>
+        )}
+        {onUseAsCast && (
+          <button
+            onClick={() => onUseAsCast(m)}
+            className="px-3 py-1.5 bg-[#252538] border border-white/10 rounded-full text-[11px] text-[#9a96a8] hover:text-[#c9b8e8] transition-all cursor-pointer font-medium"
+          >
+            👤 Add to Cast
+          </button>
+        )}
       </div>
 
       {/* Storyboard Animate Drawer */}

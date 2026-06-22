@@ -46,6 +46,8 @@ interface ModalsProps {
   onChangeStoryboardModel: (val: string) => void;
   storyboardRatio: string;
   onChangeStoryboardRatio: (val: string) => void;
+  storyParaLimit: number;
+  onChangeStoryParaLimit: (val: number) => void;
 
   // Cast Sheets
   cast: Character[];
@@ -53,7 +55,7 @@ interface ModalsProps {
   onUpdateCharacterDesc: (index: number, desc: string) => void;
   onUpdateCharacterImage: (index: number, imageUrl: string) => void;
   onDeleteCharacter: (index: number) => void;
-  onHelpWriteCharacter: (index: number, name: string, desc: string, onUpdate: (val: string) => void) => Promise<void>;
+  onHelpWriteField: (promptHint: string, contextType: 'premise' | 'tone' | 'style' | 'character', existingValue: string, extraContext?: string) => Promise<string>;
 
   // Story Setup
   setup: StorySetup;
@@ -101,12 +103,14 @@ export const Modals: React.FC<ModalsProps> = ({
   onChangeStoryboardModel,
   storyboardRatio,
   onChangeStoryboardRatio,
+  storyParaLimit,
+  onChangeStoryParaLimit,
   cast,
   onAddCharacter,
   onUpdateCharacterDesc,
   onUpdateCharacterImage,
   onDeleteCharacter,
-  onHelpWriteCharacter,
+  onHelpWriteField,
   setup,
   onSaveSetup,
   onSerializeGame,
@@ -188,6 +192,8 @@ export const Modals: React.FC<ModalsProps> = ({
           onChangeStoryboardModel={onChangeStoryboardModel}
           storyboardRatio={storyboardRatio}
           onChangeStoryboardRatio={onChangeStoryboardRatio}
+          storyParaLimit={storyParaLimit}
+          onChangeStoryParaLimit={onChangeStoryParaLimit}
         />
       )}
 
@@ -201,7 +207,7 @@ export const Modals: React.FC<ModalsProps> = ({
           onUpdateCharacterDesc={onUpdateCharacterDesc}
           onUpdateCharacterImage={onUpdateCharacterImage}
           onDeleteCharacter={onDeleteCharacter}
-          onHelpWriteCharacter={onHelpWriteCharacter}
+          onHelpWriteField={onHelpWriteField}
         />
       )}
 
@@ -212,6 +218,7 @@ export const Modals: React.FC<ModalsProps> = ({
           onClose={onClose}
           currentSetup={setup}
           onSaveSetup={onSaveSetup}
+          onHelpWriteField={onHelpWriteField}
         />
       )}
 
@@ -974,7 +981,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
 };
 
 // STORYBOARD SETTINGS MODAL
-const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStoryboard, storyboardModel, onChangeStoryboardModel, storyboardRatio, onChangeStoryboardRatio }: any) => {
+const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStoryboard, storyboardModel, onChangeStoryboardModel, storyboardRatio, onChangeStoryboardRatio, storyParaLimit, onChangeStoryParaLimit }: any) => {
   return (
     <Overlay>
       <div className="p-5 flex flex-col gap-4">
@@ -1008,6 +1015,24 @@ const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStory
         </div>
 
         <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider flex justify-between">
+              <span>Text Narration Paragraph Limit</span>
+              <span className="text-[#c9b8e8] opacity-80">(Prevents Director Confusion)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              value={storyParaLimit}
+              onChange={(e) => onChangeStoryParaLimit(parseInt(e.target.value) || 0)}
+              className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none"
+            />
+            <p className="text-[10px] text-[#9a96a8]/70 leading-tight">
+              Set to 0 to disable limits. Shorter replies (e.g. 1-2 paragraphs) make it significantly easier for the frame director to trigger accurate keyframes from your turns.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Default Frame Generator Model</label>
             <select
@@ -1048,12 +1073,71 @@ const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStory
   );
 };
 
+// HelpMeWrite Popover Component
+const HelpMeWritePopover = ({ onApply, contextType, existingValue, extraContext, onHelpWriteField }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hint, setHint] = useState('');
+  const [isWriting, setIsWriting] = useState(false);
+
+  const handleExecute = async (overrideHint?: string) => {
+    const finalHint = overrideHint || hint;
+    if (!finalHint.trim() && !overrideHint) return;
+    
+    setIsWriting(true);
+    try {
+      const result = await onHelpWriteField(finalHint, contextType, existingValue, extraContext);
+      if (result) onApply(result);
+      setIsOpen(false);
+      setHint('');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsWriting(false);
+    }
+  };
+
+  return (
+    <div className="relative inline-block ml-1 h-3 flex items-center justify-center">
+      {!isOpen ? (
+        <button 
+          type="button" 
+          onClick={() => setIsOpen(true)}
+          className="text-[10px] text-[#c9b8e8] bg-[#c9b8e8]/5 hover:bg-[#c9b8e8]/20 px-[5px] py-[1px] rounded transition-colors flex items-center gap-1 font-medium select-none overflow-visible whitespace-nowrap -mt-[1px]"
+        >
+          <Sparkles size={9}/> Help Write
+        </button>
+      ) : (
+        <div className="absolute top-full left-0 z-50 bg-[#252538] border border-white/10 p-2 rounded-xl shadow-xl w-64 mt-2 animate-in fade-in duration-100 flex flex-col gap-2">
+           <span className="text-[10px] text-[#9a96a8] font-medium leading-tight">Hint prompt (e.g. "scary setting", "office worker")</span>
+           <input 
+             autoFocus
+             type="text"
+             value={hint}
+             onChange={e => setHint(e.target.value)}
+             placeholder="Idea hint..."
+             onKeyDown={e => e.key === 'Enter' && handleExecute()}
+             className="bg-[#1a1a2e] text-xs text-[#f0ece4] border border-white/10 p-1.5 rounded outline-none w-full"
+           />
+           <div className="flex gap-2 justify-between mt-1">
+             <button onClick={() => setIsOpen(false)} className="text-[10px] text-[#9a96a8] hover:text-white px-1 cursor-pointer">Cancel</button>
+             <div className="flex gap-1.5">
+               <button onClick={() => handleExecute('random')} disabled={isWriting} className="text-[10px] text-[#9a96a8] bg-[#1a1a2e] hover:bg-white/10 px-2 py-1 rounded cursor-pointer disabled:opacity-50">Random</button>
+               <button onClick={() => handleExecute()} disabled={isWriting || !hint.trim()} className="text-[10px] font-bold text-[#1a1a2e] bg-[#c9b8e8] hover:bg-white px-2 py-1 rounded cursor-pointer disabled:opacity-50 transition-colors">
+                 {isWriting ? 'Writing...' : 'Write'}
+               </button>
+             </div>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // CAST SHEETS MODAL
-const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteCharacter }: any) => {
+const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDesc, onUpdateCharacterImage, onDeleteCharacter, onHelpWriteField }: any) => {
   const [characterName, setCharacterName] = useState('');
   const [characterDesc, setCharacterDesc] = useState('');
   const [newCharacterImage, setNewCharacterImage] = useState('');
-  const [isCastingHelp, setIsCastingHelp] = useState<number | null>(null);
 
   const handleAdd = () => {
     if (!characterName.trim()) return alert('Please enter a character name');
@@ -1065,14 +1149,6 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
     setCharacterName('');
     setCharacterDesc('');
     setNewCharacterImage('');
-  };
-
-  const executeHelpOnCast = async (idx: number, name: string) => {
-    setIsCastingHelp(idx);
-    await onHelpWriteCharacter(idx, name, cast[idx].desc, (val: string) => {
-      onUpdateCharacterDesc(idx, val);
-    });
-    setIsCastingHelp(null);
   };
 
   return (
@@ -1158,13 +1234,13 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
                     className="w-full bg-[#1a1a2e] border border-white/5 rounded-lg p-2 text-xs text-[#f0ece4] outline-none resize-none h-14 focus:border-[#c9b8e8]"
                   />
                   <div className="flex items-center gap-2 mt-0.5">
-                    <button
-                      disabled={isCastingHelp !== null}
-                      onClick={() => executeHelpOnCast(i, c.name)}
-                      className="text-[10px] text-[#c9b8e8] bg-[#c9b8e8]/10 hover:bg-[#c9b8e8]/20 flex items-center gap-1 p-1 px-2.5 rounded transition-all font-medium disabled:opacity-50 cursor-pointer flex-shrink-0"
-                    >
-                      <Sparkles size={10} /> {isCastingHelp === i ? 'Writing...' : 'Help Describe'}
-                    </button>
+                    <HelpMeWritePopover
+                      contextType="character"
+                      existingValue={c.desc}
+                      extraContext={c.name}
+                      onHelpWriteField={onHelpWriteField}
+                      onApply={(val: string) => onUpdateCharacterDesc(i, val)}
+                    />
                     <input
                       type="text"
                       placeholder="Paste Image URL..."
@@ -1255,7 +1331,7 @@ const CastModal = ({ Overlay, onClose, cast, onAddCharacter, onUpdateCharacterDe
 };
 
 // STORY SETUP MODAL
-const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup }: any) => {
+const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup, onHelpWriteField }: any) => {
   const [setup, setSetup] = useState<StorySetup>({
     premise: currentSetup.premise || '',
     tone: currentSetup.tone || '',
@@ -1285,7 +1361,10 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup }: any) =
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Premise & Scene Motivations</label>
+             <div className="flex items-center">
+               <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Premise & Scene Motivations</label>
+               <HelpMeWritePopover contextType="premise" existingValue={setup.premise} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, premise: val })} />
+             </div>
             <textarea
               placeholder="What core conflict, premise or situation anchors this story campaign?"
               value={setup.premise}
@@ -1295,7 +1374,10 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup }: any) =
           </div>
 
           <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Aesthetic Style / Medium (Applies to all Frames)</label>
+            <div className="flex items-center">
+              <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Aesthetic Style / Medium</label>
+              <HelpMeWritePopover contextType="style" existingValue={setup.style} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, style: val })} />
+            </div>
             <input
               type="text"
               placeholder="e.g. Grainy 35mm photograph, moody volumetric shadows, Peter Lindberg black & white"
@@ -1306,23 +1388,16 @@ const StorySetupModal = ({ Overlay, onClose, currentSetup, onSaveSetup }: any) =
           </div>
 
           <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Tone</label>
+            <div className="flex items-center">
+              <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Tone</label>
+              <HelpMeWritePopover contextType="tone" existingValue={setup.tone} onHelpWriteField={onHelpWriteField} onApply={(val: string) => setSetup({ ...setup, tone: val })} />
+            </div>
             <input
               type="text"
               placeholder="e.g. Neo-Noir, cozy romance, high fantasy, historical suspense"
               value={setup.tone}
               onChange={(e) => setSetup({ ...setup, tone: e.target.value })}
               className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] uppercase font-bold text-[#9a96a8] tracking-wider">Starting Cast Characters (One per line: Name — Description)</label>
-            <textarea
-              placeholder="Maya — 20s, dark hair, blue eyes, wearing oversized leather jacket&#10;Detective Cole — 40s, grizzled jaw, brown trench outfit"
-              value={setup.characters}
-              onChange={(e) => setSetup({ ...setup, characters: e.target.value })}
-              className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none h-20 resize-none focus:border-[#c9b8e8]"
             />
           </div>
         </div>
