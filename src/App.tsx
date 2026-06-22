@@ -1896,6 +1896,7 @@ export default function App() {
                   className="bg-[#121222]/90 border border-white/10 focus:border-[#c9b8e8]/50 outline-none rounded-lg p-1.5 text-xs text-[#dcd7ec] hover:bg-[#121222]/100 transition-colors cursor-pointer"
                 >
                   <option value="aurora">Flux/Aurora Image</option>
+                  <option value="chroma">Chroma (Stylized)</option>
                   <option value="zimage">Z-Image (No-Negatives)</option>
                   <option value="wan26t2v">Wan 2.6 Image</option>
                   <option value="seedance15t2v">Seedance T2V</option>
