@@ -289,6 +289,7 @@ const MessageCard = ({
           onPin={() => onPinForPE(m.hostedUrl || m.src, 'image', m.alt || 'Visual Context')}
           isPePinned={pinnedPeUrl === (m.hostedUrl || m.src)}
           onCloud={(cloudUrl: string, type: string, btnSetter: any) => onCloudSave(m.hostedUrl || m.src, 'image', btnSetter)}
+          onAddCast={onUseAsCast ? () => onUseAsCast(m) : undefined}
         />
       )}
 
@@ -388,7 +389,8 @@ const ImageMessage: React.FC<{
   onPin: () => void;
   isPePinned: boolean;
   onCloud: (cloudUrl: string, type: string, btnSetter: any) => void;
-}> = ({ src, alt, hostedUrl, label, isActiveTarget, styleLockActive, lockedStyle, onSetTarget, onAnimate, onApplyStyle, onRetry, isPePinned, onPin, onCloud }) => {
+  onAddCast?: () => void;
+}> = ({ src, alt, hostedUrl, label, isActiveTarget, styleLockActive, lockedStyle, onSetTarget, onAnimate, onApplyStyle, onRetry, isPePinned, onPin, onCloud, onAddCast }) => {
   const [animOpen, setAnimOpen] = useState(false);
   const [styleOpen, setStylePanelOpen] = useState(false);
   const [animEngine, setAnimEngine] = useState('aurora');
@@ -472,6 +474,14 @@ const ImageMessage: React.FC<{
         >
           ▶ Animate
         </button>
+        {onAddCast && (
+          <button
+            onClick={onAddCast}
+            className="px-3 py-1.5 bg-[#252538] border border-white/10 rounded-full text-dim hover:text-[#c9b8e8] transition-all cursor-pointer"
+          >
+            👤 Add to Cast
+          </button>
+        )}
         <button
           onClick={() => {
             if (!styleLockActive) return alert('Lock a visual style in Settings/Style Lock first!');

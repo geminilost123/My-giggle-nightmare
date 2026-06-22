@@ -1413,7 +1413,7 @@ export default function App() {
     if (el) el.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -1423,9 +1423,39 @@ export default function App() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    try {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxSize = 1024; // Compress to 1024px to save localStorage space
+            let { width, height } = img;
+            if (width > maxSize || height > maxSize) {
+              if (width > height) {
+                height = Math.round((height * maxSize) / width);
+                width = maxSize;
+              } else {
+                width = Math.round((width * maxSize) / height);
+                height = maxSize;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } else {
+              resolve(ev.target?.result as string);
+            }
+          };
+          img.src = ev.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+      });
+
       const uploadedCard: Message = {
         role: 'user',
         type: 'image',
@@ -1440,8 +1470,9 @@ export default function App() {
 
       updateCurrentThread(t => ({ ...t, messages: [...t.messages, uploadedCard] }));
       setMode('edit');
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+    }
     e.target.value = '';
   };
 
