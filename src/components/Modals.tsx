@@ -4,7 +4,7 @@ import { DEFAULT_PROMPT_LIBRARY } from '../data';
 import { MODEL_REGISTRY } from '../api';
 import {
   Key, Database, Trash2, Library, Plus, Save, BookOpen, Users,
-  Film, Settings, Cpu, Edit3, Clipboard, Download, Upload, ShieldAlert, Sparkles, Check, X
+  Film, Settings, Cpu, Edit3, Clipboard, Download, Upload, ShieldAlert, Sparkles, Check, X, ChevronDown, ChevronRight, HelpCircle
 } from 'lucide-react';
 
 interface ModalsProps {
@@ -751,7 +751,10 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
   const [loraScale, setLoraScale] = useState(1);
   const [copied, setCopied] = useState(false);
   
-  const [openSection, setOpenSection] = useState<'realism'|'style'>('realism');
+  const [viewMode, setViewMode] = useState<'library'|'add'>('library');
+  const [showRealism, setShowRealism] = useState(true);
+  const [showStyle, setShowStyle] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
 
   const activeCount = loras.filter((l: any) => l.active).length;
 
@@ -771,6 +774,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
     setLoraTrigger('');
     setLoraNotes('');
     setLoraScale(1);
+    setViewMode('library'); // jump back to library
   };
 
   const handleExport = async () => {
@@ -865,16 +869,16 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
             {l.notes && (
               <div className="text-[10px] text-[#9a96a8]/70 line-clamp-1 italic mt-0.5">📝 {l.notes}</div>
             )}
-            <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-[10px] text-[#9a96a8]">Weight</span>
+            <div className="flex items-center gap-2 mt-1.5 bg-black/20 p-1.5 rounded pr-3">
+              <span className="text-[10px] uppercase font-bold text-[#9a96a8] w-12 shrink-0">Scale: {l.scale}</span>
               <input
-                type="number"
+                type="range"
                 min="0"
                 max="2"
                 step="0.05"
                 value={l.scale}
                 onChange={(e) => onUpdateLoraScale(l.id, parseFloat(e.target.value) || 1)}
-                className="bg-[#1a1a2e] border border-white/10 rounded w-16 p-0.5 text-center text-[10px] text-[#f0ece4] outline-none"
+                className="w-full accent-[#c9b8e8]"
               />
             </div>
           </div>
@@ -891,10 +895,13 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
 
   return (
     <Overlay>
-      <div className="p-5 flex flex-col gap-4 max-h-[88vh]">
+      <div className="p-4 md:p-5 flex flex-col gap-4 max-h-[85vh]">
         <div className="flex items-center justify-between">
           <h2 className="font-serif font-semibold text-xl text-[#c9b8e8] flex items-center gap-2">
             🧬 LoRA Manager
+            <button onClick={() => setShowHelp(!showHelp)} className={`p-1 rounded cursor-pointer transition-colors ${showHelp ? 'bg-[#c9b8e8] text-[#1a1a2e]' : 'text-[#9a96a8] hover:text-[#c9b8e8] hover:bg-white/5'}`}>
+              <HelpCircle size={14} />
+            </button>
           </h2>
           <button onClick={onClose} className="text-[#9a96a8] hover:text-[#c47a8a] cursor-pointer">
             <X size={18} />
@@ -904,138 +911,169 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
           Tether weights via Hugging Face/Civitai. Max <b>3</b> total active across all categories. Compatible with Flux, Klein and Z-Image.
         </p>
 
-        <div className="flex justify-between gap-2">
-          <div className="flex gap-2">
-            <button
-              onClick={() => onToggleAllLoras(false)}
-              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-[10px] uppercase font-bold text-[#9a96a8] cursor-pointer"
-            >
-              Turn All Off
-            </button>
-            <span className="text-[10px] text-[#c9b8e8] flex items-center bg-[#c9b8e8]/10 px-2 rounded-lg font-mono">
-              {activeCount}/3 Active Slots Used
-            </span>
+        {showHelp && (
+          <div className="p-3 bg-[#131326] border border-[#c9b8e8]/20 rounded-xl text-[10px] text-[#f0ece4] leading-relaxed flex flex-col gap-2 -mt-2">
+            <p><b>CFG vs LoRA Strength:</b> CFG (Guidance Scale) dictates how strictly the base model follows your text prompt (Recommended 3.0-4.0). LoRA Strength (Scale) dictates how heavy the custom model fine-tune is applied over the image (Recommended 0.8-1.0 for most realism LoRAs).</p>
+            <p>You can mix up to 3 Active LoRAs simultaneously. Try mixing a Realism model (0.8) with an Anatomy/Style model (1.0). Ensure your LoRA matches the compatible base model you select in the generation options.</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleExport} className={`p-1 px-2.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors ${copied ? 'bg-green-500/20 text-green-400' : 'bg-[#1a1a2e]/60 text-[#f0ece4]'}`}>
-              {copied ? <Check size={11} /> : <Download size={11} />} {copied ? 'Saved' : 'Save'}
-            </button>
-            <button onClick={handleImport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer">
-              <Upload size={11} /> Load
-            </button>
-          </div>
-        </div>
+        )}
 
-        {/* Categories */}
-        <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1">
-          {/* Realism Category */}
-          <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl overflow-hidden">
-            <button 
-              onClick={() => setOpenSection(openSection === 'realism' ? 'style' : 'realism')}
-              className="w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer"
-            >
-              <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Realism</h3>
-              <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'realism' || !l.category).length} loaded</span>
-            </button>
-            {openSection === 'realism' && (
-              <div className="p-2 border-t border-white/5">
-                {renderLoraList('realism')}
-              </div>
-            )}
-          </div>
-
-          {/* Style Category */}
-          <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl overflow-hidden">
-            <button 
-              onClick={() => setOpenSection(openSection === 'style' ? 'realism' : 'style')}
-              className="w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer"
-            >
-              <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Anatomy & Style Control</h3>
-              <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'style').length} loaded</span>
-            </button>
-            {openSection === 'style' && (
-              <div className="p-2 border-t border-white/5">
-                {renderLoraList('style')}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Form Container */}
-        <div className="border border-white/5 bg-[#1b1b32] rounded-xl p-3 flex flex-col gap-3 mt-1">
-          <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest flex items-center gap-1.5"><Plus size={12}/> Register New LoRA Asset</span>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <input
-              type="text"
-              placeholder="Name (e.g. Cinematic Film)"
-              value={loraName}
-              onChange={(e) => setLoraName(e.target.value)}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
-            />
-            <input
-              type="text"
-              placeholder="HF or Civitai URL Target"
-              value={loraUrl}
-              onChange={(e) => setLoraUrl(e.target.value)}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input
-              type="text"
-              placeholder="Trigger Words (comma separated)"
-              value={loraTrigger}
-              onChange={(e) => setLoraTrigger(e.target.value)}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20 md:col-span-2"
-            />
-            <select
-              value={loraBase}
-              onChange={(e) => setLoraBase(e.target.value)}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
-            >
-              <option value="Flux" className="bg-[#1a1a2e]">Base: Flux</option>
-              <option value="Flux2-Klein" className="bg-[#1a1a2e]">Base: Klein 9B</option>
-              <option value="Z-Image" className="bg-[#1a1a2e]">Base: Z-Image</option>
-              <option value="Other" className="bg-[#1a1a2e]">Base: Other</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input
-              type="text"
-              placeholder="Notes (optional)"
-              value={loraNotes}
-              onChange={(e) => setLoraNotes(e.target.value)}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none placeholder:text-white/20 md:col-span-2"
-            />
-            <select
-              value={loraCategory}
-              onChange={(e) => setLoraCategory(e.target.value as 'realism'|'style')}
-              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
-            >
-              <option value="realism" className="bg-[#1a1a2e]">Cat: Realism</option>
-              <option value="style" className="bg-[#1a1a2e]">Cat: Anatomy & Style</option>
-            </select>
-            <div className="flex items-center gap-2 bg-[#131326] border border-white/5 rounded-lg p-2.5">
-              <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Scale</span>
-              <input
-                type="number"
-                min="0"
-                max="2"
-                step="0.05"
-                placeholder="1.0"
-                value={loraScale}
-                onChange={(e) => setLoraScale(parseFloat(e.target.value) || 1)}
-                className="bg-transparent text-xs text-[#f0ece4] outline-none text-center w-full min-w-0"
-              />
-            </div>
-          </div>
+        <div className="flex bg-[#1a1a2e] p-1.5 rounded-xl border border-white/5 flex-shrink-0">
           <button
-            onClick={handleAdd}
-            className="w-full bg-[#c9b8e8] hover:bg-[#b5a3d4] text-[#1a1a2e] rounded-xl p-3 text-xs font-bold mt-1 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+            onClick={() => setViewMode('library')}
+            className={`flex-1 py-2 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors cursor-pointer ${viewMode === 'library' ? 'bg-[#252538] text-[#c9b8e8]' : 'text-[#9a96a8] hover:text-[#f0ece4]'}`}
           >
-            <Plus size={14} /> Add LoRA Setup
+            LoRA Library
+          </button>
+          <button
+            onClick={() => setViewMode('add')}
+            className={`flex-1 py-2 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${viewMode === 'add' ? 'bg-[#252538] text-[#c9b8e8]' : 'text-[#9a96a8] hover:text-[#f0ece4]'}`}
+          >
+            <Plus size={12} /> Add New Asset
           </button>
         </div>
+
+        {viewMode === 'library' ? (
+          <>
+            <div className="flex justify-between gap-2 flex-shrink-0">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onToggleAllLoras(false)}
+                  className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-[10px] uppercase font-bold text-[#9a96a8] cursor-pointer"
+                >
+                  Turn All Off
+                </button>
+                <span className="text-[10px] text-[#c9b8e8] flex items-center bg-[#c9b8e8]/10 px-2 rounded-lg font-mono">
+                  {activeCount}/3 Active Slots Used
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleExport} className={`p-1 px-2.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors ${copied ? 'bg-green-500/20 text-green-400' : 'bg-[#1a1a2e]/60 text-[#f0ece4]'}`}>
+                  {copied ? <Check size={11} /> : <Download size={11} />} {copied ? 'Saved' : 'Save'}
+                </button>
+                <button onClick={handleImport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer hover:bg-[#1a1a2e]">
+                  <Upload size={11} /> Load
+                </button>
+              </div>
+            </div>
+
+            {/* Categories */}
+            <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1 custom-scrollbar min-h-0">
+              {/* Realism Category */}
+              <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl flex-shrink-0 transition-all">
+                <button 
+                  onClick={() => setShowRealism(!showRealism)}
+                  className={`w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer rounded-t-xl ${!showRealism ? 'rounded-b-xl' : 'border-b border-white/5'}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {showRealism ? <ChevronDown size={14} className="text-[#9a96a8] transition-transform" /> : <ChevronRight size={14} className="text-[#9a96a8] transition-transform" />}
+                    <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Realism</h3>
+                  </div>
+                  <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'realism' || !l.category).length} loaded</span>
+                </button>
+                {showRealism && (
+                  <div className="p-2">
+                    {renderLoraList('realism')}
+                  </div>
+                )}
+              </div>
+
+              {/* Style Category */}
+              <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl flex-shrink-0 transition-all">
+                <button 
+                  onClick={() => setShowStyle(!showStyle)}
+                  className={`w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer rounded-t-xl ${!showStyle ? 'rounded-b-xl' : 'border-b border-white/5'}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {showStyle ? <ChevronDown size={14} className="text-[#9a96a8] transition-transform" /> : <ChevronRight size={14} className="text-[#9a96a8] transition-transform" />}
+                    <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Anatomy & Style Control</h3>
+                  </div>
+                  <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'style').length} loaded</span>
+                </button>
+                {showStyle && (
+                  <div className="p-2">
+                    {renderLoraList('style')}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="border border-white/5 bg-[#1b1b32] rounded-xl p-4 flex flex-col gap-4 mt-1">
+            <h3 className="text-[12px] uppercase font-bold text-[#f0ece4] tracking-widest border-b border-white/5 pb-2">Manual Entry</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                placeholder="Name (e.g. Cinematic Film)"
+                value={loraName}
+                onChange={(e) => setLoraName(e.target.value)}
+                className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
+              />
+              <input
+                type="text"
+                placeholder="HuggingFace or Civitai URL Target (API format or Huggingface model format)"
+                value={loraUrl}
+                onChange={(e) => setLoraUrl(e.target.value)}
+                className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
+              />
+              <input
+                type="text"
+                placeholder="Trigger Words (comma separated)"
+                value={loraTrigger}
+                onChange={(e) => setLoraTrigger(e.target.value)}
+                className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
+              />
+              
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={loraBase}
+                  onChange={(e) => setLoraBase(e.target.value)}
+                  className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
+                >
+                  <option value="Flux" className="bg-[#1a1a2e]">Base: Flux</option>
+                  <option value="Flux2-Klein" className="bg-[#1a1a2e]">Base: Klein 9B</option>
+                  <option value="Z-Image" className="bg-[#1a1a2e]">Base: Z-Image</option>
+                  <option value="Other" className="bg-[#1a1a2e]">Base: Other</option>
+                </select>
+                <select
+                  value={loraCategory}
+                  onChange={(e) => setLoraCategory(e.target.value as 'realism'|'style')}
+                  className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
+                >
+                  <option value="realism" className="bg-[#1a1a2e]">Cat: Realism</option>
+                  <option value="style" className="bg-[#1a1a2e]">Cat: Anatomy & Style</option>
+                </select>
+              </div>
+
+              <input
+                type="text"
+                placeholder="Notes (optional)"
+                value={loraNotes}
+                onChange={(e) => setLoraNotes(e.target.value)}
+                className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none placeholder:text-white/20"
+              />
+              
+              <div className="flex items-center gap-3 bg-[#131326] border border-white/5 rounded-lg p-2.5">
+                <span className="text-[10px] text-[#9a96a8] uppercase font-bold w-24 shrink-0">Default Scale: {loraScale}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.05"
+                  value={loraScale}
+                  onChange={(e) => setLoraScale(parseFloat(e.target.value) || 1)}
+                  className="w-full accent-[#c9b8e8]"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleAdd}
+              className="w-full bg-[#c9b8e8] hover:bg-[#b5a3d4] text-[#1a1a2e] rounded-xl p-3 text-xs font-bold mt-2 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Plus size={14} /> Add LoRA Setup
+            </button>
+          </div>
+        )}
       </div>
     </Overlay>
   );
