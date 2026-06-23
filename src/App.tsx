@@ -180,15 +180,26 @@ export default function App() {
         { id: 90004, name: 'Milo Manara', url: 'https://civitai.com/api/download/models/2545735', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Comic-book ink and color style', active: false },
         { id: 90005, name: 'samdoearts', url: 'https://civitai.com/api/download/models/2541753', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Semi-realistic 3D-cartoon digital painting', active: false },
         { id: 90006, name: 'SNOFS (Klein 9B)', url: 'https://civitai.red/api/download/models/2960556?fileId=2839878', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'NSFW Training - High flexibility', active: false },
-        { id: 90007, name: 'Lenovo styles real', url: 'https://civitai.com/api/download/models/1234567', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Highly realistic details for Klein', active: false },
-        { id: 90008, name: 'Anatomy detail fix', url: 'https://civitai.com/api/download/models/8765432', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Improves body proportions and anatomical details', active: false }
+        { id: 90007, name: 'Lenovo styles real', url: 'https://civitai.com/api/download/models/2545735', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Highly realistic details for Klein', active: false },
+        { id: 90008, name: 'Anatomy detail fix', url: 'https://civitai.com/api/download/models/2541753', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Improves body proportions and anatomical details', active: false }
       ];
 
       const storedStr = localStorage.getItem('zaor_loras');
       let loadedLoras: any[] = [];
       if (storedStr) {
         loadedLoras = JSON.parse(storedStr);
-        loadedLoras = loadedLoras.map(l => l.base === 'Klein' ? { ...l, base: 'Flux2-Klein' } : l);
+        loadedLoras = loadedLoras.map(l => {
+          let updated = { ...l };
+          if (updated.base === 'Klein') updated.base = 'Flux2-Klein';
+          // Fix cached dummy URLs
+          if (updated.url === 'https://civitai.com/api/download/models/1234567') {
+            updated.url = 'https://civitai.com/api/download/models/2545735';
+          }
+          if (updated.url === 'https://civitai.com/api/download/models/8765432') {
+            updated.url = 'https://civitai.com/api/download/models/2541753';
+          }
+          return updated;
+        });
       } else {
         const envLoras: LoRA[] = [];
         const lora1Url = import.meta.env.VITE_LORA_1_URL;
@@ -574,18 +585,21 @@ export default function App() {
 
     const resArray: string[] = [];
 
-    // Trigger count map
-    for (let c = 0; c < imageCount; c++) {
-      const outputUrl = await callModel(imageModel, {
+    // Trigger count map in parallel
+    const promises = Array.from({ length: imageCount }).map(() => 
+      callModel(imageModel, {
         prompt: fullyStyledPrompt,
         aspectRatio: imageRatio,
         resolution: imageRes,
         steps: imageSteps,
         guidance: imageGuidance,
         loras: reqLoras
-      });
-      if (outputUrl) resArray.push(outputUrl);
-    }
+      })
+    );
+    const urls = await Promise.all(promises);
+    urls.forEach(url => {
+      if (url) resArray.push(url);
+    });
 
     const newCards = resArray.map(url => ({
       role: 'assistant' as const,
