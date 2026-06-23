@@ -286,7 +286,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] uppercase font-bold text-[#9a96a8]">Model Base</span>
-              {(imageModel === 'chroma' || imageModel === 'z-image-lora' || imageModel === 'flux-lora' || imageModel === 'klein9b-lora') && (
+              {(imageModel === 'chroma' || imageModel === 'z-image-lora' || imageModel === 'flux-lora' || imageModel === 'klein9b-lora' || imageModel === 'z-image-turbo') && (
                 <button 
                   onClick={() => setShowModelHelp(!showModelHelp)}
                   className="text-[#9a96a8] hover:text-[#c9b8e8] outline-none cursor-pointer"
@@ -308,11 +308,11 @@ export const InputControls: React.FC<InputControlsProps> = ({
               <option value="atlas-flux-schnell">Flux Schnell (Atlas) $0.003</option>
               <option value="atlas-flux-2-pro">Flux 2 Pro (Atlas) $0.04</option>
               <option value="atlas-wan27-img">Wan 2.7 Image (Atlas) $0.03</option>
-              <option value="z-image-turbo">Z-Image Turbo (Atlas) $0.01</option>
-              <option value="z-image-lora">Z-Image Turbo (WS) $0.01</option>
-              <option value="flux-lora">Flux Dev (WS) $0.015</option>
+              <option value="z-image-turbo">Z-Image Turbo (Atlas) [LoRA] $0.01</option>
+              <option value="z-image-lora">Z-Image Turbo (WS) [LoRA] $0.01</option>
+              <option value="flux-lora">Flux Dev (WS) [LoRA] $0.015</option>
               <option value="chroma">Chroma Uncensored (WS) $0.015</option>
-              <option value="klein9b-lora">Klein 9B LoRA (WS) $0.015</option>
+              <option value="klein9b-lora">Klein 9B (WS) [LoRA] $0.015</option>
             </select>
           </div>
 
@@ -358,7 +358,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
           </div>
 
           {/* Advanced Sliders for relevant image models */}
-          {(imageModel === 'flux-lora' || imageModel === 'z-image-lora' || imageModel === 'klein9b-lora' || imageModel === 'chroma' || imageModel === 'atlas-flux-dev' || imageModel === 'atlas-flux-2-pro') && (
+          {(imageModel === 'flux-lora' || imageModel === 'z-image-lora' || imageModel === 'z-image-turbo' || imageModel === 'klein9b-lora' || imageModel === 'chroma' || imageModel === 'atlas-flux-dev' || imageModel === 'atlas-flux-2-pro') && (
             <div className="col-span-2 md:col-span-4 grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center text-[10px] text-[#9a96a8]">

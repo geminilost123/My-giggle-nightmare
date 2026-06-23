@@ -2136,6 +2136,8 @@ export default function App() {
         onUpdateLoraScale={handleUpdateLoraScale}
         onDeleteLora={handleDeleteLora}
         onImportLoras={handleImportLoras}
+        imageGuidance={imageGuidance}
+        onChangeImageGuidance={setImageGuidance}
         storyboardOn={storyboardOn}
         onToggleStoryboard={(val) => {
           setStoryboardOn(val);

@@ -79,6 +79,9 @@ interface ModalsProps {
   deleteId: string | null;
   deleteName: string;
   onConfirmDelete: () => void;
+  // CFG Guidance
+  imageGuidance?: number;
+  onChangeImageGuidance?: (val: number) => void;
 }
 
 export const ModalOverlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
@@ -139,7 +142,9 @@ export const Modals: React.FC<ModalsProps> = ({
   onSaveRename,
   deleteId,
   deleteName,
-  onConfirmDelete
+  onConfirmDelete,
+  imageGuidance,
+  onChangeImageGuidance
 }) => {
   if (!activeModal) return null;
 
@@ -187,6 +192,8 @@ export const Modals: React.FC<ModalsProps> = ({
           onUpdateLoraScale={onUpdateLoraScale}
           onDeleteLora={onDeleteLora}
           onImportLoras={onImportLoras}
+          imageGuidance={imageGuidance}
+          onChangeImageGuidance={onChangeImageGuidance}
         />
       )}
 
@@ -741,7 +748,7 @@ const PromptLibraryModal = ({ Overlay, onClose, userPrompts, onSaveUserPrompt, o
 };
 
 // LORA MANAGER MODAL
-const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, onToggleAllLoras, onUpdateLoraScale, onDeleteLora, onImportLoras }: any) => {
+const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, onToggleAllLoras, onUpdateLoraScale, onDeleteLora, onImportLoras, imageGuidance, onChangeImageGuidance }: any) => {
   const [loraName, setLoraName] = useState('');
   const [loraUrl, setLoraUrl] = useState('');
   const [loraTrigger, setLoraTrigger] = useState('');
@@ -935,6 +942,26 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
 
         {viewMode === 'library' ? (
           <>
+            {onChangeImageGuidance && imageGuidance !== undefined && (
+              <div className="bg-[#1a1a2e]/50 border border-white/5 p-3 rounded-xl flex flex-col gap-1.5 flex-shrink-0">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-[#c9b8e8] uppercase tracking-wider">
+                    Guidance Scale (CFG)
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-[#c9b8e8] bg-[#c9b8e8]/10 px-2.5 py-0.5 rounded-lg border border-[#c9b8e8]/20">{imageGuidance}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.1"
+                  value={imageGuidance}
+                  onChange={(e) => onChangeImageGuidance(parseFloat(e.target.value) || 3.5)}
+                  className="w-full accent-[#c9b8e8] cursor-pointer"
+                />
+              </div>
+            )}
+
             <div className="flex justify-between gap-2 flex-shrink-0">
               <div className="flex gap-2">
                 <button

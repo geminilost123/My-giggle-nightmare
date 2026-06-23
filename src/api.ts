@@ -85,8 +85,13 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'z-image/turbo',
     price: 0.01,
     verified: true,
+    lora: true,
+    loraBase: 'Z-Image',
     buildBody: p => {
       const b: any = { prompt: p.prompt, enable_safety_checker: false };
+      if (p.loras && p.loras.length) {
+        b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
+      }
       if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
