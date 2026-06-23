@@ -88,7 +88,14 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     lora: true,
     loraBase: 'Z-Image',
     buildBody: p => {
-      const b: any = { prompt: p.prompt, enable_safety_checker: false };
+      const b: any = { 
+        prompt: p.prompt, 
+        seed: Math.floor(Math.random() * 2147483647),
+        guidance_scale: p.guidance != null ? p.guidance : 3.5,
+        num_inference_steps: p.steps && p.steps > 0 ? p.steps : 28,
+        aspect_ratio: p.aspectRatio || '1:1',
+        enable_safety_checker: false 
+      };
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
@@ -109,6 +116,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       const b: any = {
         prompt: p.prompt,
         size: wsSize(p.aspectRatio, p.resolution),
+        num_inference_steps: p.steps && p.steps > 0 ? p.steps : 28,
+        guidance_scale: p.guidance != null ? p.guidance : 3.5,
         seed: -1,
         enable_base64_output: false,
         enable_safety_checker: false
@@ -159,6 +168,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       const b: any = {
         prompt: p.prompt,
         size: wsSize(p.aspectRatio, p.resolution),
+        num_inference_steps: p.steps && p.steps > 0 ? p.steps : 28,
+        guidance_scale: p.guidance != null ? p.guidance : 3.5,
         seed: -1,
         output_format: 'png',
         enable_base64_output: false,
@@ -181,6 +192,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       const b: any = {
         prompt: p.prompt,
         size: wsSize(p.aspectRatio, p.resolution),
+        num_inference_steps: p.steps && p.steps > 0 ? p.steps : 28,
+        guidance_scale: p.guidance != null ? p.guidance : 3.5,
         seed: -1,
         enable_safety_checker: false,
         enable_base64_output: false
@@ -202,7 +215,12 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     lora: true,
     loraBase: 'Flux',
     buildBody: p => {
-      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      const b: any = { 
+        prompt: p.prompt, 
+        num_images: 1, 
+        seed: Math.floor(Math.random() * 2147483647),
+        enable_safety_checker: false 
+      };
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
@@ -218,7 +236,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     price: 0.003,
     verified: true,
     buildBody: p => {
-      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      const b: any = { prompt: p.prompt, num_images: 1, seed: Math.floor(Math.random() * 2147483647), enable_safety_checker: false };
       if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
@@ -231,7 +249,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     price: 0.04,
     verified: true,
     buildBody: p => {
-      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      const b: any = { prompt: p.prompt, num_images: 1, seed: Math.floor(Math.random() * 2147483647), enable_safety_checker: false };
       if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
@@ -244,7 +262,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     price: 0.03,
     verified: true,
     buildBody: p => {
-      const b: any = { prompt: p.prompt, enable_safety_checker: false };
+      const b: any = { prompt: p.prompt, seed: Math.floor(Math.random() * 2147483647), enable_safety_checker: false };
       if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
