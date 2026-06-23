@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LoRA, Character, StorySetup, PromptTemplate, Thread } from '../types';
 import { DEFAULT_PROMPT_LIBRARY } from '../data';
+import { MODEL_REGISTRY } from '../api';
 import {
   Key, Database, Trash2, Library, Plus, Save, BookOpen, Users,
   Film, Settings, Cpu, Edit3, Clipboard, Download, Upload, ShieldAlert, Sparkles, Check, X
@@ -746,8 +747,11 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
   const [loraTrigger, setLoraTrigger] = useState('');
   const [loraNotes, setLoraNotes] = useState('');
   const [loraBase, setLoraBase] = useState('Flux');
+  const [loraCategory, setLoraCategory] = useState<'realism'|'style'>('realism');
   const [loraScale, setLoraScale] = useState(1);
   const [copied, setCopied] = useState(false);
+  
+  const [openSection, setOpenSection] = useState<'realism'|'style'>('realism');
 
   const activeCount = loras.filter((l: any) => l.active).length;
 
@@ -759,6 +763,7 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
       trigger: loraTrigger.trim(),
       notes: loraNotes.trim(),
       base: loraBase,
+      category: loraCategory,
       scale: Number(loraScale) || 1
     });
     setLoraName('');
@@ -830,6 +835,60 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
     input.click();
   };
 
+  const renderLoraList = (cat: 'realism'|'style') => {
+    const filteredLoras = loras.filter((l: any) => (l.category === cat) || (!l.category && cat === 'realism'));
+    if (filteredLoras.length === 0) {
+      return (
+        <div className="p-4 text-center text-[10px] text-[#9a96a8]/50 italic">
+          No LoRAs in this category.
+        </div>
+      );
+    }
+    return filteredLoras.map((l: any, idx: number) => (
+      <div key={l.id} className="bg-[#1a1a2e]/50 border border-white/5 rounded-xl p-3 flex items-start justify-between gap-3 relative group mb-2">
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+          <input
+            type="checkbox"
+            checked={l.active}
+            onChange={(e) => onToggleLora(l.id, e.target.checked)}
+            disabled={!l.active && activeCount >= 3}
+            className="w-4.5 h-4.5 accent-[#c9b8e8] cursor-pointer disabled:opacity-50 mt-0.5"
+            title={!l.active && activeCount >= 3 ? 'Max 3 LoRAs active' : ''}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-[#f0ece4] truncate">
+              {l.name}
+            </div>
+            <div className="text-[10px] text-[#9a96a8] truncate mt-0.5">
+              Base: <b className="text-[#c9b8e8]">{l.base}</b> &middot; Trigger: <b>{l.trigger}</b>
+            </div>
+            {l.notes && (
+              <div className="text-[10px] text-[#9a96a8]/70 line-clamp-1 italic mt-0.5">📝 {l.notes}</div>
+            )}
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-[10px] text-[#9a96a8]">Weight</span>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.05"
+                value={l.scale}
+                onChange={(e) => onUpdateLoraScale(l.id, parseFloat(e.target.value) || 1)}
+                className="bg-[#1a1a2e] border border-white/10 rounded w-16 p-0.5 text-center text-[10px] text-[#f0ece4] outline-none"
+              />
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => onDeleteLora(l.id)}
+          className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 cursor-pointer opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    ));
+  };
+
   return (
     <Overlay>
       <div className="p-5 flex flex-col gap-4 max-h-[88vh]">
@@ -842,147 +901,139 @@ const LoraManagerModal = ({ Overlay, onClose, loras, onAddLora, onToggleLora, on
           </button>
         </div>
         <p className="text-[11px] text-[#9a96a8] -mt-2 leading-relaxed">
-          Tether weights (Civitai paths or Hugging Face repository labels) triggers automatically. Choose up to <b>3</b> active LoRAs. Compatible with Flux/Klein and Z-Image.
+          Tether weights via Hugging Face/Civitai. Max <b>3</b> total active across all categories. Compatible with Flux, Klein and Z-Image.
         </p>
 
         <div className="flex justify-between gap-2">
           <div className="flex gap-2">
             <button
-              onClick={() => onToggleAllLoras(true)}
-              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-xs text-[#9a96a8] cursor-pointer"
-            >
-              All On
-            </button>
-            <button
               onClick={() => onToggleAllLoras(false)}
-              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-xs text-[#9a96a8] cursor-pointer"
+              className="p-1 px-3 bg-[#1a1a2e] border border-white/5 hover:border-[#c9b8e8]/30 rounded-lg text-[10px] uppercase font-bold text-[#9a96a8] cursor-pointer"
             >
-              All Off
+              Turn All Off
             </button>
+            <span className="text-[10px] text-[#c9b8e8] flex items-center bg-[#c9b8e8]/10 px-2 rounded-lg font-mono">
+              {activeCount}/3 Active Slots Used
+            </span>
           </div>
           <div className="flex gap-2">
             <button onClick={handleExport} className={`p-1 px-2.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors ${copied ? 'bg-green-500/20 text-green-400' : 'bg-[#1a1a2e]/60 text-[#f0ece4]'}`}>
-              {copied ? <Check size={11} /> : <Download size={11} />} {copied ? 'Saved' : 'Save Config'}
+              {copied ? <Check size={11} /> : <Download size={11} />} {copied ? 'Saved' : 'Save'}
             </button>
             <button onClick={handleImport} className="p-1 px-2.5 bg-[#1a1a2e]/60 rounded-lg text-xs text-[#f0ece4] flex items-center gap-1 cursor-pointer">
-              <Upload size={11} /> Load Config
+              <Upload size={11} /> Load
             </button>
           </div>
         </div>
 
-        {/* Existing List */}
-        <div className="flex-1 overflow-y-auto flex flex-col gap-2 max-h-[220px] bg-[#1a1a2e]/20 border border-white/5 rounded-xl p-2">
-          {loras.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#9a96a8]/50 italic">
-              No LoRAs saved. Fill in the registry below to add one.
-            </div>
-          ) : (
-            loras.map((l: any, idx: number) => (
-              <div key={l.id} className="bg-[#1a1a2e]/50 border border-white/5 rounded-xl p-3 flex items-start justify-between gap-3 relative group">
-                <div className="flex items-start gap-2.5 flex-1 min-width-0">
-                  <input
-                    type="checkbox"
-                    checked={l.active}
-                    onChange={(e) => onToggleLora(l.id, e.target.checked)}
-                    className="w-4.5 h-4.5 accent-[#c9b8e8] cursor-pointer"
-                  />
-                  <div className="flex-1 min-width-0">
-                    <div className="text-xs font-semibold text-[#f0ece4] truncate">
-                      <span className="text-[#9a96a8] mr-1">#{idx + 1}</span> {l.name}
-                    </div>
-                    <div className="text-[10px] text-[#9a96a8] truncate mt-0.5">
-                      Base: <b className="text-[#c9b8e8]">{l.base}</b> &middot; Trigger: <b>{l.trigger}</b>
-                    </div>
-                    {l.notes && (
-                      <div className="text-[10px] text-[#9a96a8]/70 line-clamp-1 italic mt-0.5">📝 {l.notes}</div>
-                    )}
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] text-[#9a96a8]">Weight</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="2"
-                        step="0.05"
-                        value={l.scale}
-                        onChange={(e) => onUpdateLoraScale(l.id, parseFloat(e.target.value) || 1)}
-                        className="bg-[#1a1a2e] border border-white/10 rounded w-16 p-0.5 text-center text-[10px] text-[#f0ece4] outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => onDeleteLora(l.id)}
-                  className="p-1 rounded text-[#9a96a8] hover:text-[#c47a8a] bg-white/5 cursor-pointer opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={12} />
-                </button>
+        {/* Categories */}
+        <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1">
+          {/* Realism Category */}
+          <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl overflow-hidden">
+            <button 
+              onClick={() => setOpenSection(openSection === 'realism' ? 'style' : 'realism')}
+              className="w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer"
+            >
+              <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Realism</h3>
+              <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'realism' || !l.category).length} loaded</span>
+            </button>
+            {openSection === 'realism' && (
+              <div className="p-2 border-t border-white/5">
+                {renderLoraList('realism')}
               </div>
-            ))
-          )}
+            )}
+          </div>
+
+          {/* Style Category */}
+          <div className="bg-[#1a1a2e]/30 border border-white/5 rounded-xl overflow-hidden">
+            <button 
+              onClick={() => setOpenSection(openSection === 'style' ? 'realism' : 'style')}
+              className="w-full text-left p-3 flex justify-between items-center bg-[#252538] hover:bg-[#2a2a40] transition-colors cursor-pointer"
+            >
+              <h3 className="text-xs font-bold text-[#f0ece4] uppercase tracking-wider">Anatomy & Style Control</h3>
+              <span className="text-[#9a96a8] text-xs font-mono">{loras.filter((l: any) => l.category === 'style').length} loaded</span>
+            </button>
+            {openSection === 'style' && (
+              <div className="p-2 border-t border-white/5">
+                {renderLoraList('style')}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Form Container */}
-        <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
-          <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest">Register New LoRA Asset</span>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="border border-white/5 bg-[#1b1b32] rounded-xl p-3 flex flex-col gap-3 mt-1">
+          <span className="text-[10px] uppercase font-bold text-[#c9b8e8] tracking-widest flex items-center gap-1.5"><Plus size={12}/> Register New LoRA Asset</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <input
               type="text"
-              placeholder="Name (e.g. Comic Ink Style)"
+              placeholder="Name (e.g. Cinematic Film)"
               value={loraName}
               onChange={(e) => setLoraName(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
             />
             <input
               type="text"
               placeholder="HF or Civitai URL Target"
               value={loraUrl}
               onChange={(e) => setLoraUrl(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8]"
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20"
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               type="text"
-              placeholder="Commas trigger words"
+              placeholder="Trigger Words (comma separated)"
               value={loraTrigger}
               onChange={(e) => setLoraTrigger(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] col-span-2"
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] placeholder:text-white/20 md:col-span-2"
             />
             <select
               value={loraBase}
               onChange={(e) => setLoraBase(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#9a96a8] outline-none w-full"
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
             >
-              <option value="Flux">For Flux</option>
-              <option value="Flux2-Klein">For Klein 9B</option>
-              <option value="Z-Image">For Z-Image</option>
-              <option value="Other">Other Base</option>
+              <option value="Flux" className="bg-[#1a1a2e]">Base: Flux</option>
+              <option value="Flux2-Klein" className="bg-[#1a1a2e]">Base: Klein 9B</option>
+              <option value="Z-Image" className="bg-[#1a1a2e]">Base: Z-Image</option>
+              <option value="Other" className="bg-[#1a1a2e]">Base: Other</option>
             </select>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               type="text"
-              placeholder="Style annotations (optional Notes)"
+              placeholder="Notes (optional)"
               value={loraNotes}
               onChange={(e) => setLoraNotes(e.target.value)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none col-span-3"
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none placeholder:text-white/20 md:col-span-2"
             />
-            <input
-              type="number"
-              min="0"
-              max="2"
-              step="0.05"
-              placeholder="Scale"
-              value={loraScale}
-              onChange={(e) => setLoraScale(parseFloat(e.target.value) || 1)}
-              className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none text-center"
-            />
+            <select
+              value={loraCategory}
+              onChange={(e) => setLoraCategory(e.target.value as 'realism'|'style')}
+              className="bg-[#131326] border border-white/5 rounded-lg p-2.5 text-xs text-[#f0ece4] outline-none w-full"
+            >
+              <option value="realism" className="bg-[#1a1a2e]">Cat: Realism</option>
+              <option value="style" className="bg-[#1a1a2e]">Cat: Anatomy & Style</option>
+            </select>
+            <div className="flex items-center gap-2 bg-[#131326] border border-white/5 rounded-lg p-2.5">
+              <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Scale</span>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.05"
+                placeholder="1.0"
+                value={loraScale}
+                onChange={(e) => setLoraScale(parseFloat(e.target.value) || 1)}
+                className="bg-transparent text-xs text-[#f0ece4] outline-none text-center w-full min-w-0"
+              />
+            </div>
           </div>
           <button
             onClick={handleAdd}
-            className="w-full bg-[#c9b8e8] hover:bg-[#c9b8e8]/90 text-[#1a1a2e] rounded-xl p-2.5 text-xs font-bold mt-1 cursor-pointer flex items-center justify-center gap-1"
+            className="w-full bg-[#c9b8e8] hover:bg-[#b5a3d4] text-[#1a1a2e] rounded-xl p-3 text-xs font-bold mt-1 cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
           >
-            <Plus size={14} /> Add LoRA Setup ({activeCount}/3 Active)
+            <Plus size={14} /> Add LoRA Setup
           </button>
         </div>
       </div>
@@ -1050,9 +1101,13 @@ const StoryboardSettingsModal = ({ Overlay, onClose, storyboardOn, onToggleStory
               onChange={(e) => onChangeStoryboardModel(e.target.value)}
               className="w-full bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none"
             >
-              <option value="chroma">Chroma Uncensored &middot; WaveSpeed — $0.015</option>
-              <option value="z-image-turbo">Z-Image Turbo &middot; Atlas — $0.01</option>
-              <option value="aurora-simple">Aurora Simple &middot; xAI — $0.02</option>
+              {Object.entries(MODEL_REGISTRY)
+                .filter(([_, m]) => m.cat === 't2img')
+                .map(([id, m]) => (
+                  <option key={id} value={id}>
+                    {m.label} — ${m.price}
+                  </option>
+                ))}
             </select>
           </div>
 

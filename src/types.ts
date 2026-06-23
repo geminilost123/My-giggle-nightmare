@@ -52,6 +52,7 @@ export interface LoRA {
   base: string;
   notes: string;
   active: boolean;
+  category?: 'realism' | 'style';
 }
 
 export interface PromptTemplate {

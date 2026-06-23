@@ -112,6 +112,7 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
               isLoading={isLoading}
               onRetryFrame={onRetryFrame}
               onUseAsCast={onUseAsCast}
+              onForceFrame={onForceFrame}
             />
           );
         } else {
@@ -136,6 +137,7 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
               isLoading={isLoading}
               onRetryFrame={onRetryFrame}
               onUseAsCast={onUseAsCast}
+              onForceFrame={onForceFrame}
             />
           );
         }

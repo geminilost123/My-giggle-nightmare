@@ -173,9 +173,19 @@ export default function App() {
 
     // LoRAs
     try {
+      const defaultHardcodedLoras = [
+        { id: 90001, name: 'Z-Image Anime 01', url: 'https://civitai.com/api/download/models/2448896', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Flat, vibrant 2D anime style', active: false },
+        { id: 90002, name: 'Z-Image-Turbo-Anime', url: 'https://civitai.com/api/download/models/2543657', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Foundational anime style for turbo', active: false },
+        { id: 90003, name: 'Z-IMAGE ANIME - ILL', url: 'https://civitai.com/api/download/models/2463859', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'High-contrast digital illustration', active: false },
+        { id: 90004, name: 'Milo Manara', url: 'https://civitai.com/api/download/models/2545735', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Comic-book ink and color style', active: false },
+        { id: 90005, name: 'samdoearts', url: 'https://civitai.com/api/download/models/2541753', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Semi-realistic 3D-cartoon digital painting', active: false },
+        { id: 90006, name: 'SNOFS (Klein 9B)', url: 'https://civitai.red/api/download/models/2960556?fileId=2839878', trigger: '', base: 'Klein', category: 'realism', scale: 0.85, notes: 'NSFW Training - High flexibility', active: false }
+      ];
+
       const storedStr = localStorage.getItem('zaor_loras');
+      let loadedLoras: any[] = [];
       if (storedStr) {
-        setLoras(JSON.parse(storedStr));
+        loadedLoras = JSON.parse(storedStr);
       } else {
         const envLoras: LoRA[] = [];
         const lora1Url = import.meta.env.VITE_LORA_1_URL;
@@ -217,11 +227,15 @@ export default function App() {
             active: true
           });
         }
-        
-        setLoras(envLoras);
-        if (envLoras.length > 0) {
-          localStorage.setItem('zaor_loras', JSON.stringify(envLoras));
-        }
+        loadedLoras = envLoras;
+      }
+
+      const toAdd = defaultHardcodedLoras.filter(dl => !loadedLoras.find(l => l.url === dl.url));
+      const finalList = [...loadedLoras, ...toAdd];
+      setLoras(finalList);
+      
+      if (finalList.length > 0) {
+        localStorage.setItem('zaor_loras', JSON.stringify(finalList));
       }
     } catch {
       setLoras([]);
@@ -531,7 +545,12 @@ export default function App() {
       : promptText;
 
     // Apply any active/matching parameters & trigger words injection
-    const activeLorasList = loras.filter(l => l.active && (!l.base || l.base === 'Other' || l.base === registryEntry.loraBase));
+    const activeLorasList = loras.filter(l => l.active);
+    const hasMismatch = activeLorasList.some(l => l.base && l.base !== 'Other' && l.base !== registryEntry.loraBase);
+    if (hasMismatch) {
+      setTimeout(() => alert("Warning: Model / LoRA mismatch. Expect unexpected results or API errors."), 10);
+    }
+    
     if (activeLorasList.length > 0) {
       activeLorasList.forEach(l => {
         const trigs = l.trigger.split(',').map(t => t.trim()).filter(Boolean);
@@ -545,20 +564,6 @@ export default function App() {
 
     const reqLoras = activeLorasList.map(l => ({ path: l.url, scale: l.scale }));
 
-    // Find ANY character match for IP-Adapter injection (identity preservation)
-    let imageRefUrl: string | undefined = undefined;
-    if (activeThread?.cast) {
-      for (const charObj of activeThread.cast) {
-        if (charObj.imageUrl && charObj.name) {
-          const re = new RegExp('\\b' + charObj.name + '\\b', 'i');
-          if (re.test(fullyStyledPrompt)) {
-            imageRefUrl = charObj.imageUrl;
-            break;
-          }
-        }
-      }
-    }
-
     const resArray: string[] = [];
 
     // Trigger count map
@@ -569,8 +574,7 @@ export default function App() {
         resolution: imageRes,
         steps: imageSteps,
         guidance: imageGuidance,
-        loras: reqLoras,
-        imageReference: imageRefUrl
+        loras: reqLoras
       });
       if (outputUrl) resArray.push(outputUrl);
     }
@@ -976,16 +980,17 @@ export default function App() {
       const data = await res.json();
       const blockText = data.choices?.[0]?.message?.content || '';
 
+      const cleanBlockText = blockText.replace(/[*#]/g, '');
+
       // Match block parameters
-      const frameMatch = blockText.match(/FRAME:\s*yes/i);
-      if (!frameMatch && !force) {
-        if (force) throw new Error("Director did not output FRAME: yes even when forced.");
-        return;
+      const frameMatch = cleanBlockText.match(/FRAME:\s*yes/i);
+      if (!frameMatch) {
+        if (!force) return; // Silent discard so storytelling logic never crashes on parsing
       }
 
       const sec = (name: string) => {
         const re = new RegExp(name + ':\\s*([\\s\\S]*?)(?=\\n\\s*(?:FRAME|REASON|IMAGE_PROMPT|VIDEO_PROMPT|CAST):|$)', 'i');
-        const m = blockText.match(re);
+        const m = cleanBlockText.match(re);
         return m ? m[1].trim() : '';
       };
 
@@ -1022,7 +1027,12 @@ export default function App() {
       if (setup && setup.style) finalPrompt = `${imagePrompt}, ${setup.style}`;
 
       // Assemble active LoRA details
-      const activeLorasList = loras.filter(l => l.active && (!l.base || l.base === 'Other' || l.base === (MODEL_REGISTRY[storyboardModel]?.loraBase || '')));
+      const activeLorasList = loras.filter(l => l.active);
+      const sbModelBase = MODEL_REGISTRY[storyboardModel]?.loraBase || '';
+      const hasMismatch = activeLorasList.some(l => l.base && l.base !== 'Other' && l.base !== sbModelBase);
+      if (hasMismatch) {
+        console.warn("Storyboard Model / LoRA mismatch detected.");
+      }
       const reqLoras = activeLorasList.map(l => ({ path: l.url, scale: l.scale }));
 
       // Find ANY character match for IP-Adapter injection (identity preservation) using whole-word matching

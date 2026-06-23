@@ -24,6 +24,7 @@ export interface ModelRegistryEntry {
     image?: string;
     video?: string;
     duration?: number;
+    imageReference?: string;
   }) => any;
 }
 
@@ -84,7 +85,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'z-image/turbo',
     price: 0.01,
     verified: true,
-    buildBody: p => ({ prompt: p.prompt, enable_safety_checker: false })
+    buildBody: p => {
+      const b: any = { prompt: p.prompt, enable_safety_checker: false };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'z-image-lora': {
     cat: 't2img',
@@ -106,9 +111,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
-      if (p.imageReference) {
-        b.image_reference = { image: p.imageReference, weight: 0.85 };
-      }
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
   },
@@ -136,9 +139,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
-      if (p.imageReference) {
-        b.image_reference = { image: p.imageReference, weight: 0.85 };
-      }
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
   },
@@ -149,14 +150,18 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'wavespeed-ai/chroma',
     price: 0.015,
     verified: true,
-    buildBody: p => ({
-      prompt: p.prompt,
-      size: wsSize(p.aspectRatio, p.resolution),
-      seed: -1,
-      output_format: 'png',
-      enable_base64_output: false,
-      enable_sync_mode: false
-    })
+    buildBody: p => {
+      const b: any = {
+        prompt: p.prompt,
+        size: wsSize(p.aspectRatio, p.resolution),
+        seed: -1,
+        output_format: 'png',
+        enable_base64_output: false,
+        enable_sync_mode: false
+      };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'klein9b-lora': {
     cat: 't2img',
@@ -178,6 +183,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
       if (p.loras && p.loras.length) {
         b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
       }
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
   },
@@ -188,7 +194,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'black-forest-labs/flux-dev',
     price: 0.01,
     verified: true,
-    buildBody: p => ({ prompt: p.prompt, num_images: 1, enable_safety_checker: false })
+    buildBody: p => {
+      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'atlas-flux-schnell': {
     cat: 't2img',
@@ -197,7 +207,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'black-forest-labs/flux-schnell',
     price: 0.003,
     verified: true,
-    buildBody: p => ({ prompt: p.prompt, num_images: 1, enable_safety_checker: false })
+    buildBody: p => {
+      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'atlas-flux-2-pro': {
     cat: 't2img',
@@ -206,7 +220,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'black-forest-labs/flux-2-pro/text-to-image',
     price: 0.04,
     verified: true,
-    buildBody: p => ({ prompt: p.prompt, num_images: 1, enable_safety_checker: false })
+    buildBody: p => {
+      const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'atlas-wan27-img': {
     cat: 't2img',
@@ -215,7 +233,11 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'alibaba/wan-2.7/text-to-image',
     price: 0.03,
     verified: true,
-    buildBody: p => ({ prompt: p.prompt, enable_safety_checker: false })
+    buildBody: p => {
+      const b: any = { prompt: p.prompt, enable_safety_checker: false };
+      if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
+      return b;
+    }
   },
   'atlas-flux-kontext': {
     cat: 'edit',

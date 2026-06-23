@@ -2,8 +2,8 @@
 
 The user has established the following permanent rules for this project:
 
-1. **Discuss Before Commit:** 
-If the user requests a significant feature, architectural change, or integration (especially ones relating to local vs. cloud services, platform limitations like iOS, or complex overhauls), you **MUST** discuss the plan, potential limitations, and proposed implementations with the user *before* making the code changes. Wait for their confirmation before writing the code.
+1. **Discuss Before Commit & Magic Phrase Execution:** 
+You MUST NEVER write, edit, or execute code modifications unless the user explicitly uses the exact phrase: "execute the plan". If this phrase is missing, you must only plan, research, and discuss. Do not apologize when corrected, and stay purely functional.
 
 2. **Auto-Increment Application Version:**
 Every time you make an update to the app's code or add a feature in a turn, you **MUST** increment the version number displayed in the GUI. 

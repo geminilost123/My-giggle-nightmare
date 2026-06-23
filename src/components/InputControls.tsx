@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ModelRegistryEntry, MODEL_REGISTRY } from '../api';
 import {
-  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye, MessageSquare, Wand2, Loader2
+  Image, Video, Sparkles, Send, Lock, ChevronDown, ChevronUp, RefreshCw, Upload, Eye, MessageSquare, Wand2, Loader2, HelpCircle
 } from 'lucide-react';
 
 interface InputControlsProps {
@@ -115,6 +115,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
 }) => {
   const [styleExpanded, setStyleExpanded] = useState(false);
   const [localStyle, setLocalStyle] = useState(lockedStyle);
+  const [showModelHelp, setShowModelHelp] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -280,9 +281,20 @@ export const InputControls: React.FC<InputControlsProps> = ({
 
       {/* Advanced Image Params Panel (T2I) */}
       {mode === 'image' && (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 bg-[#14142a]/30 p-2 border border-white/5 rounded-xl">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-[9px] uppercase font-bold text-[#9a96a8]">Model Base</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] uppercase font-bold text-[#9a96a8]">Model Base</span>
+              {(imageModel === 'chroma' || imageModel === 'z-image-lora' || imageModel === 'flux-lora' || imageModel === 'klein9b-lora') && (
+                <button 
+                  onClick={() => setShowModelHelp(!showModelHelp)}
+                  className="text-[#9a96a8] hover:text-[#c9b8e8] outline-none cursor-pointer"
+                >
+                  <HelpCircle size={10} />
+                </button>
+              )}
+            </div>
             <select
               value={imageModel}
               onChange={(e) => onChangeImageModel(e.target.value)}
@@ -345,8 +357,8 @@ export const InputControls: React.FC<InputControlsProps> = ({
             </select>
           </div>
 
-          {/* Advanced Sliders if LoRA is Chosen */}
-          {(imageModel === 'flux-lora' || imageModel === 'z-image-lora' || imageModel === 'klein9b-lora') && (
+          {/* Advanced Sliders for relevant image models */}
+          {(imageModel === 'flux-lora' || imageModel === 'z-image-lora' || imageModel === 'klein9b-lora' || imageModel === 'chroma' || imageModel === 'atlas-flux-dev' || imageModel === 'atlas-flux-2-pro') && (
             <div className="col-span-2 md:col-span-4 grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center text-[10px] text-[#9a96a8]">
@@ -363,13 +375,13 @@ export const InputControls: React.FC<InputControlsProps> = ({
               </div>
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-center text-[10px] text-[#9a96a8]">
-                  <span>Guidance Scale: {imageGuidance}</span>
+                  <span title="Guidance Scale (CFG) dictates how strictly the model follows your prompt. Higher = Stricter phrasing adherence. Lower = More creative freedom.">Guidance (CFG): {imageGuidance}</span>
                 </div>
                 <input
                   type="range"
                   min="1"
                   max="10"
-                  step="0.5"
+                  step="0.1"
                   value={imageGuidance}
                   onChange={(e) => onChangeImageGuidance(parseFloat(e.target.value) || 3.5)}
                   className="accent-[#c9b8e8] w-full"
@@ -377,7 +389,28 @@ export const InputControls: React.FC<InputControlsProps> = ({
               </div>
             </div>
           )}
+
+          {/* Model Help Box */}
+          {showModelHelp && (
+            <div className="col-span-2 md:col-span-4 mt-2 p-3 bg-[#1b1b36] border border-[#c9b8e8]/20 rounded-lg text-[10px] text-[#f0ece4] leading-relaxed">
+              <div className="font-bold text-[#c9b8e8] mb-1 flex items-center gap-1">
+                <HelpCircle size={12} /> Mode Guidance: {imageModel.includes('chroma') ? 'Chroma' : 'Base / LoRA Capabilities'}
+              </div>
+              <div className="mb-2 p-2 bg-black/20 rounded border border-white/5 text-[9px] text-[#b8b4c4]">
+                  <b>CFG vs LoRA Strength:</b> CFG (Guidance Scale) dictates how strictly the base model follows your text prompt (Recommended 3.0-4.0 for Chroma/Z-Image). LoRA Strength (Scale) dictates how heavy the custom model fine-tune is applied over the image (Recommended 0.8-1.5 for most realism LoRAs). Fast samplers are baked into the inference API (typically dpmpp_2m + beta).
+              </div>
+              {imageModel.includes('chroma') ? (
+                <>
+                  <p className="mb-1"><b>Chroma Uncensored:</b> Highly stylized and tolerant base. It does <b>NOT</b> support LoRAs. Fast generation (dpmpp_2m) works great with a CFG around 3-4.</p>
+                  <p><b>Recommended Settings:</b> Natural prose prompts without negatives. Base works excellently for illustrations.</p>
+                </>
+              ) : (
+                <p><b>LoRA Models (Flux, Klein, Z-Image):</b> Support up to 3 simultaneous LoRAs in the LoRA matrix. You can use valid config across multiple combined models (e.g., character LoRA at 1.1 weight and styled LoRA at 0.6).</p>
+              )}
+            </div>
+          )}
         </div>
+        </>
       )}
 
       {/* Advanced Video Params Panel (T2V) */}
