@@ -43,10 +43,10 @@ export default function App() {
 
   // Api Keys & Local Storage credentials
   const [keys, setKeys] = useState(() => {
-    let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-1212');
-    if (chatStr === 'grok-beta' || chatStr === 'grok-2-latest' || chatStr === 'grok-2') {
-       chatStr = 'grok-2-1212';
-       try { localStorage.setItem('xai_chat_model', 'grok-2-1212'); } catch(e) {}
+    let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-latest');
+    // Sanitize old breaking models from localStorage
+    if (chatStr === 'grok-2-1212' || chatStr === 'grok-beta' || chatStr === 'grok-2') {
+      chatStr = 'grok-2-latest';
     }
     return {
       apiKey: resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || ''),
@@ -81,9 +81,9 @@ export default function App() {
   const [lockedStyle, setLockedStyle] = useState<string>('');
 
   useEffect(() => {
-    if (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest' || keys.chatModel === 'grok-2') {
-      setKeys(k => ({ ...k, chatModel: 'grok-2-1212' }));
-      try { localStorage.setItem('xai_chat_model', 'grok-2-1212'); } catch (err) {}
+    // Keep chat model flexible but sanitize invalid ones
+    if (keys.chatModel === 'grok-2-1212' || keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2') {
+      setKeys(k => ({ ...k, chatModel: 'grok-2-latest' }));
     }
   }, [keys.chatModel]);
 
@@ -492,16 +492,28 @@ export default function App() {
     // Compose PE context or Setup directives
     const sysPromptBase = promptEngineerMode
       ? PE_SYSTEM_PROMPTS[peSelectedModel] || PE_SYSTEM_PROMPTS.aurora
-      : buildStorySetupSystem(activeThread.setup);
+      : (storyboardOn 
+          ? buildStorySetupSystem(activeThread.setup) 
+          : 'You are an exceptionally capable AI assistant. Be direct, helpful, and concise. CRITICAL: The user has disabled story mode. Even if prior chat history contains narrative story prose, you MUST NOT continue the story or narrate. Respond directly and functionally to the user\'s latest prompt.');
       
-    const sysPrompt = !promptEngineerMode && storyParaLimit > 0
+    const sysPrompt = !promptEngineerMode && storyboardOn && storyParaLimit > 0
       ? sysPromptBase + `\n\nCRITICAL RULE: For pacing, limit your narration replies to a MAXIMUM of ${storyParaLimit} paragraphs. Do not write huge walls of text.`
       : sysPromptBase;
 
-    const historyPayload = activeThread.history.slice(-3).map(h => ({
-      role: h.role,
-      content: typeof h.content === 'string' ? h.content : JSON.stringify(h.content)
-    }));
+    const historyPayload = activeThread.history.slice(-3).map(h => {
+      let payloadContent: any = h.content;
+      if (typeof h.content === 'string' && h.content.startsWith('data:')) {
+        payloadContent = [
+          { type: 'image_url', image_url: { url: h.content, detail: 'high' } }
+        ];
+      } else if (typeof h.content !== 'string') {
+        payloadContent = JSON.stringify(h.content);
+      }
+      return {
+        role: h.role,
+        content: payloadContent
+      };
+    });
 
     // Guarantee that userText is represented at the end of history if not already present, preventing empty/invalid payloads
     const finalHistory = [...historyPayload];
@@ -521,7 +533,10 @@ export default function App() {
       if (lastIdx !== -1 && peUrl) {
         messagesPayload[lastIdx] = {
           role: 'user',
-          content: `Visual Reference Context Attached: ${peUrl}\n` + messagesPayload[lastIdx].content
+          content: [
+            { type: 'text', text: typeof messagesPayload[lastIdx].content === 'string' ? messagesPayload[lastIdx].content : 'Prompt Engineer Request' },
+            { type: 'image_url', image_url: { url: peUrl, detail: 'high' } }
+          ]
         } as any;
       }
     }
@@ -530,7 +545,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
       body: JSON.stringify({
-        model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+        model: keys.chatModel || 'grok-2-latest',
         messages: messagesPayload,
         max_tokens: 2048
       })
@@ -1014,7 +1029,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: keys.chatModel || 'grok-2-latest',
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: contentPrompt }
@@ -1341,7 +1356,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: keys.chatModel || 'grok-2-latest',
           messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
           temperature: 0.6,
           max_tokens: 500
@@ -1415,7 +1430,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: keys.chatModel || 'grok-2-latest',
           messages: [
             { role: 'system', content: sys },
             { role: 'user', content: prompt }

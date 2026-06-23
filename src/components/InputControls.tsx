@@ -142,7 +142,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
     : 'bg-[#1a1a2e] border-white/5 text-[#9a96a8]';
 
   const placeholders = {
-    chat: 'Roleplay with Zaor or command the AI...',
+    chat: 'Command the AI or write a prompt...',
     image: 'Describe an image in detail (looks, lighting, environment)...',
     video: 'Describe video motion (subject motion, panning, tempo)...',
     edit: 'Describe what to edit, retain, or swap...',
@@ -164,7 +164,7 @@ export const InputControls: React.FC<InputControlsProps> = ({
         <span className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-1.5 ${
           mode === 'image' || mode === 'edit' ? 'text-[#c9b8e8]' : mode === 'video' ? 'text-[#64b4ff]' : mode === 'enhance' ? 'text-emerald-400' : 'text-[#9a96a8]'
         }`}>
-          {mode === 'chat' && '💬 Chat / Story Mode'}
+          {mode === 'chat' && '💬 Chat'}
           {mode === 'image' && '🎨 T2I Image Mode'}
           {mode === 'video' && '🎥 Video Render Mode'}
           {mode === 'edit' && '✏️ Image Revision Mode'}

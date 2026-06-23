@@ -313,13 +313,6 @@ const modelDetails: Record<string, { name: string; costIn: string; costOut: stri
     desc: 'Standard production-grade Grok 2.',
     cap: 'Reliable reasoning, high speed, structured parsing'
   },
-  'grok-2-1212': {
-    name: 'Grok 2 (Dec 2024 Build)',
-    costIn: '$2.00',
-    costOut: '$10.00',
-    desc: 'Pinned version of Grok 2 from December 2024 Build.',
-    cap: 'Deterministic output testing, creative prose'
-  },
   'grok-3-latest': {
     name: 'Grok 3 (Latest Flagship)',
     costIn: '$4.00',
@@ -457,8 +450,6 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
               <select
                 value={
                   [
-                    'grok-2', 
-                    'grok-2-1212', 
                     'grok-2-latest', 
                     'grok-3',
                     'grok-3-latest', 
@@ -474,15 +465,13 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
                 }}
                 className="bg-[#1a1a2e] border border-white/10 rounded-lg p-2 text-xs text-[#f0ece4] outline-none focus:border-[#c9b8e8] min-w-[124px] cursor-pointer"
               >
-                <option value="grok-2">grok-2</option>
-                <option value="grok-2-1212">grok-2-1212</option>
                 <option value="grok-2-latest">grok-2-latest</option>
                 <option value="grok-3">grok-3</option>
                 <option value="grok-3-latest">grok-3-latest</option>
                 <option value="grok-3-mini">grok-3-mini</option>
                 <option value="grok-4-latest">grok-4-latest</option>
                 {fetchedModels.filter(m => ![
-                  'grok-2', 'grok-2-1212', 'grok-2-latest', 
+                  'grok-2-latest', 
                   'grok-3', 'grok-3-latest', 'grok-3-mini', 'grok-4-latest'
                 ].includes(m)).map((modelId) => (
                   <option key={modelId} value={modelId}>

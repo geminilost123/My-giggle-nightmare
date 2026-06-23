@@ -613,7 +613,12 @@ export function modelsByCat(cat: ModelRegistryEntry['cat']): [string, ModelRegis
 }
 
 export function resolveKey(storageName: string, envVal: string): string {
-  const item = localStorage.getItem(storageName);
+  let item = null;
+  try {
+    item = localStorage.getItem(storageName);
+  } catch (e) {
+    // Ignore block
+  }
   if (!item || item === 'null' || item === 'undefined' || item.trim() === '') {
     return envVal || '';
   }
