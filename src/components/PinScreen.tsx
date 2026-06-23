@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { CORRECT_PIN, PIN_SESSION_KEY } from '../data';
 import { Shield, Sparkles } from 'lucide-react';
 
 interface PinScreenProps {
@@ -12,9 +11,7 @@ export const PinScreen: React.FC<PinScreenProps> = ({ onUnlock }) => {
   const [isShaking, setIsShaking] = useState<boolean>(false);
 
   useEffect(() => {
-    if (sessionStorage.getItem(PIN_SESSION_KEY) === '1') {
-      onUnlock();
-    }
+    // Auth status is handled in App.tsx
   }, [onUnlock]);
 
   const handleKeyPress = (val: string) => {
@@ -24,13 +21,29 @@ export const PinScreen: React.FC<PinScreenProps> = ({ onUnlock }) => {
     setPin(newPin);
 
     if (newPin.length === 4) {
-      setTimeout(() => {
-        if (newPin === CORRECT_PIN) {
-          sessionStorage.setItem(PIN_SESSION_KEY, '1');
-          onUnlock();
-        } else {
+      setTimeout(async () => {
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: newPin })
+          });
+          const data = await res.json();
+          if (data.success) {
+            onUnlock();
+          } else {
+            setIsShaking(true);
+            setError(data.error || 'Incorrect PIN');
+            setTimeout(() => {
+              setPin('');
+              setIsShaking(false);
+              setError('');
+            }, 900);
+          }
+        } catch (err) {
           setIsShaking(true);
-          setError('Incorrect PIN');
+          setError('Network Error');
           setTimeout(() => {
             setPin('');
             setIsShaking(false);

@@ -431,6 +431,17 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
   },
 
   // ─────────── IMAGE-TO-VIDEO (animate) ───────────
+  'ltx23-spicy': {
+    cat: 'i2v',
+    label: 'LTX 2.3 Spicy · WaveSpeed [WaveSpeed Key]',
+    provider: 'wavespeed',
+    path: 'wavespeed-ai/ltx-2.3-spicy/image-to-video',
+    price: 0.10,
+    verified: true,
+    durations: [4, 5, 8, 10],
+    resolutions: ['480p', '720p'],
+    buildBody: p => ({ prompt: p.prompt, image: p.image, resolution: p.resolution || '720p', duration: Math.min(p.duration || 5, 10), seed: -1 })
+  },
   'aurora-i2v': {
     cat: 'i2v',
     label: 'Aurora I2V · WaveSpeed [WaveSpeed Key]',
@@ -647,9 +658,9 @@ export async function callModel(modelId: string, params: {
 
   if (m.provider === 'xai-image') {
     if (!xaiKey) throw new Error('xAI credentials missing.');
-    const res = await fetch('https://api.x.ai/v1/images/generations', {
+    const res = await fetch('/api/proxy/xai/v1/images/generations', { credentials: 'include',
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${xaiKey}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     if (!res.ok) {
@@ -671,12 +682,9 @@ export async function callModel(modelId: string, params: {
 
   if (m.provider === 'atlas') {
     if (!atlasKey) throw new Error('Atlas Cloud credentials missing.');
-    const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
+    const res = await fetch('/api/proxy/atlas/api/v1/model/generateImage', { credentials: 'include',
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${atlasKey}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: m.path,
         ...body
@@ -719,9 +727,9 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
 
   if (m.provider === 'xai-image') {
     if (!xaiKey) throw new Error('xAI credentials missing for image edit.');
-    const res = await fetch('https://api.x.ai/v1/images/generations', {
+    const res = await fetch('/api/proxy/xai/v1/images/generations', { credentials: 'include',
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${xaiKey}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     if (!res.ok) {
@@ -746,12 +754,9 @@ export async function runEdit(prompt: string, imageSrc: string, modelId: string)
     const preparedImage = await atlasPrepareImage(imageSrc, atlasKey);
     const atlasBody = m.buildBody({ prompt, image: preparedImage });
 
-    const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
+    const res = await fetch('/api/proxy/atlas/api/v1/model/generateImage', { credentials: 'include',
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${atlasKey}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: m.path,
         ...atlasBody
@@ -786,9 +791,9 @@ export async function atlasPrepareImage(src: string, atlasKey: string): Promise<
     const blob = await resp.blob();
     const fd = new FormData();
     fd.append('file', blob, 'source.png');
-    const up = await fetch('https://api.atlascloud.ai/api/v1/model/uploadMedia', {
+    const up = await fetch('/api/proxy/atlas/api/v1/model/uploadMedia', { credentials: 'include',
       method: 'POST',
-      headers: { Authorization: `Bearer ${atlasKey}` },
+      headers: {},
       body: fd
     });
     if (up.ok) {
@@ -848,9 +853,9 @@ export async function callWaveSpeed(
 ): Promise<string> {
   if (!wavespeedKey) throw new Error('WaveSpeed API key required.');
 
-  const submitRes = await fetch(`https://api.wavespeed.ai/api/v3/${modelPath}`, {
+  const submitRes = await fetch(`/api/proxy/wavespeed/api/v3/${modelPath}`, { credentials: 'include',
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${wavespeedKey}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
 
@@ -868,8 +873,8 @@ export async function callWaveSpeed(
     await new Promise(r => setTimeout(r, intervalMs));
     elapsed += intervalMs;
 
-    const pollRes = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${taskId}/result`, {
-      headers: { Authorization: `Bearer ${wavespeedKey}` }
+    const pollRes = await fetch(`/api/proxy/wavespeed/api/v3/predictions/${taskId}/result`, { credentials: 'include',
+      headers: {}
     });
     if (!pollRes.ok) continue;
 
@@ -938,10 +943,10 @@ export async function pollAtlasPrediction(id: string, atlasKey: string): Promise
   const intervalMs = 3000;  // 3 seconds
 
   const endpoints = [
-    (predId: string) => `https://api.atlascloud.ai/api/v1/model/prediction/${predId}`,
-    (predId: string) => `https://api.atlascloud.ai/v1/predictions/${predId}`,
-    (predId: string) => `https://api.atlascloud.ai/v1/model/predict/status?id=${predId}`,
-    (predId: string) => `https://api.atlascloud.ai/v1/model/predict?id=${predId}`
+    (predId: string) => `/api/proxy/atlas/api/v1/model/prediction/${predId}`,
+    (predId: string) => `/api/proxy/atlas/v1/predictions/${predId}`,
+    (predId: string) => `/api/proxy/atlas/v1/model/predict/status?id=${predId}`,
+    (predId: string) => `/api/proxy/atlas/v1/model/predict?id=${predId}`
   ];
 
   while (Date.now() - startTime < timeoutMs) {
@@ -950,11 +955,9 @@ export async function pollAtlasPrediction(id: string, atlasKey: string): Promise
     for (const getUrlBuilder of endpoints) {
       try {
         const url = getUrlBuilder(id);
-        const res = await fetch(url, {
+        const res = await fetch(url, { credentials: 'include',
           method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${atlasKey}`
-          }
+          headers: {}
         });
         
         if (res.ok) {

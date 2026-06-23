@@ -1,8 +1,5 @@
 import { PromptTemplate } from './types';
 
-export const CORRECT_PIN = '2001';
-export const PIN_SESSION_KEY = 'gs_unlocked';
-
 export const DEFAULT_PROMPT_LIBRARY: PromptTemplate[] = [
   {
     type: 'image',

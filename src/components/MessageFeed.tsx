@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Message } from '../types';
+import { MODEL_REGISTRY } from '../api';
 import {
   Copy, Image, Video, Film, Trash, Sparkles, Send, Lock,
   Unlock, HelpCircle, Check, Camera, RefreshCcw, Download, Cloud, ChevronRight, X, Loader2
@@ -530,14 +531,17 @@ const ImageMessage: React.FC<{
             <span className="text-[10px] text-[#9a96a8] uppercase font-bold pr-1">Engine:</span>
             <select
               value={animEngine}
-              onChange={(e) => setAnimEngine(e.target.value)}
+              onChange={(e) => {
+                setAnimEngine(e.target.value);
+                setDur(5);
+              }}
               className="bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px] text-[#c9b8e8]"
             >
-              <option value="aurora">Aurora &middot; xAI — $0.05/s</option>
-              <option value="seedance15spicy">Seedance Spicy — $0.06/s</option>
-              <option value="wan22spicy">Wan 2.2 Spicy — $0.15/s</option>
-              <option value="wan26spicy">Wan 2.7 Spicy — $0.50/s</option>
-              <option value="ltx23spicy">LTX 2.3 Spicy — $0.10/s</option>
+              <option value="aurora-i2v">Aurora &middot; xAI — $0.05/s</option>
+              <option value="seedance15-spicy">Seedance Spicy — $0.06/s</option>
+              <option value="wan22-spicy">Wan 2.2 Spicy — $0.15/s</option>
+              <option value="wan27-spicy">Wan 2.7 Spicy — $0.50/s</option>
+              <option value="ltx23-spicy">LTX 2.3 Spicy — $0.10/s</option>
             </select>
 
             <span className="text-[10px] uppercase font-bold text-[#9a96a8]">Duration</span>
@@ -546,11 +550,9 @@ const ImageMessage: React.FC<{
               onChange={(e) => setDur(parseInt(e.target.value))}
               className="img-control-select bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px]"
             >
-              <option value="4">4s</option>
-              <option value="5">5s</option>
-              <option value="8">8s</option>
-              <option value="10">10s</option>
-              <option value="15">15s</option>
+              {(MODEL_REGISTRY[animEngine]?.durations || [4, 5, 8, 10, 15]).map(d => (
+                <option key={d} value={d}>{d}s</option>
+              ))}
             </select>
 
             <button
@@ -580,10 +582,10 @@ const ImageMessage: React.FC<{
                 onChange={(e) => setStyleModel(e.target.value)}
                 className="bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px] text-[#c9b8e8]"
               >
-                <option value="fluxkontext">Flux Kontext — $0.02</option>
-                <option value="qwen">Qwen Edit — $0.02</option>
-                <option value="wan27">Wan 2.7 — $0.03</option>
-                <option value="wan27pro">Wan 2.7 Pro — $0.06</option>
+                <option value="flux-kontext">Flux Kontext — $0.02</option>
+                <option value="qwen-edit">Qwen Edit — $0.02</option>
+                <option value="wan27-edit">Wan 2.7 — $0.03</option>
+                <option value="wan27pro-edit">Wan 2.7 Pro — $0.06</option>
                 <option value="klein9b-edit-lora">Klein 9B — $0.021</option>
               </select>
             </div>
@@ -848,13 +850,16 @@ const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, onRetryFra
             <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Engine:</span>
             <select
               value={animEngine}
-              onChange={(e) => setAnimEngine(e.target.value)}
+              onChange={(e) => {
+                setAnimEngine(e.target.value);
+                setDur(5);
+              }}
               className="bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px] text-[#c9b8e8]"
             >
-              <option value="aurora">Aurora &middot; xAI — $0.05/s</option>
-              <option value="seedance15spicy">Seedance Spicy — $0.06/s</option>
-              <option value="wan22spicy">Wan 2.2 Spicy — $0.15/s</option>
-              <option value="ltx23spicy">LTX 2.3 Spicy — $0.10/s</option>
+              <option value="aurora-i2v">Aurora &middot; xAI — $0.05/s</option>
+              <option value="seedance15-spicy">Seedance Spicy — $0.06/s</option>
+              <option value="wan22-spicy">Wan 2.2 Spicy — $0.15/s</option>
+              <option value="ltx23-spicy">LTX 2.3 Spicy — $0.10/s</option>
             </select>
 
             <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Dur:</span>
@@ -863,10 +868,9 @@ const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, onRetryFra
               onChange={(e) => setDur(parseInt(e.target.value))}
               className="img-control-select bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px]"
             >
-              <option value="4">4s</option>
-              <option value="5">5s</option>
-              <option value="8">8s</option>
-              <option value="10">10s</option>
+              {(MODEL_REGISTRY[animEngine]?.durations || [4, 5, 8, 10, 15]).map(d => (
+                <option key={d} value={d}>{d}s</option>
+              ))}
             </select>
 
             <button
@@ -910,10 +914,10 @@ const StoryboardFrameCard = ({ m, onAnimate, onEdit, onCloud, onSave, onRetryFra
                 onChange={(e) => setEditModel(e.target.value)}
                 className="bg-[#2e2e48] border border-white/5 rounded p-1 text-[10px] text-[#c9b8e8]"
               >
-                <option value="wan27">Wan 2.7 Edit — $0.03</option>
-                <option value="wan27pro">Wan 2.7 Pro — $0.06</option>
-                <option value="fluxkontext">Flux Kontext — $0.02</option>
-                <option value="qwen2">Qwen 2.0 Edit — $0.03</option>
+                <option value="wan27-edit">Wan 2.7 Edit — $0.03</option>
+                <option value="wan27pro-edit">Wan 2.7 Pro — $0.06</option>
+                <option value="flux-kontext">Flux Kontext — $0.02</option>
+                <option value="qwen2-edit">Qwen 2.0 Edit — $0.03</option>
               </select>
             </div>
             <button

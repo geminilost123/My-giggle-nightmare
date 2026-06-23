@@ -3,6 +3,7 @@ export interface Message {
   type: 'text' | 'image' | 'video' | 'storyboard' | 'error';
   content?: string;
   src?: string;
+  blob?: Blob;
   alt?: string;
   hostedUrl?: string | null;
   modelLabel?: string;

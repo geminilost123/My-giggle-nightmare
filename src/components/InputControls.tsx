@@ -420,12 +420,20 @@ export const InputControls: React.FC<InputControlsProps> = ({
             <span className="text-[9px] uppercase font-bold text-[#9a96a8]">Engine</span>
             <select
               value={videoEngine}
-              onChange={(e) => onChangeVideoEngine(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                onChangeVideoEngine(val);
+                // Clamp duration to valid ones for the new engine
+                const allowedDurs = MODEL_REGISTRY[val]?.durations || [5];
+                if (!allowedDurs.includes(videoDur)) {
+                  onChangeVideoDur(allowedDurs[0] || 5);
+                }
+              }}
               className="w-full min-w-0 bg-[#252538] border border-white/5 rounded-lg p-1 text-[11px] text-[#f0ece4] outline-none truncate"
             >
-              <option value="aurora">Aurora T2V (xAI) $0.05/s</option>
-              <option value="seedance15t2v">Seedance 1.5 (WS) $0.06/s</option>
-              <option value="wan26t2v">Wan 2.6 (WS) $0.068/s</option>
+              <option value="aurora-t2v">Aurora T2V (xAI) $0.05/s</option>
+              <option value="seedance15-t2v">Seedance 1.5 (WS) $0.06/s</option>
+              <option value="wan26-t2v">Wan 2.6 (WS) $0.068/s</option>
               <option value="atlas-wan27-t2v">Wan 2.7 (Atlas) $0.02/s</option>
             </select>
           </div>
@@ -437,11 +445,9 @@ export const InputControls: React.FC<InputControlsProps> = ({
               onChange={(e) => onChangeVideoDur(parseInt(e.target.value) || 5)}
               className="w-full min-w-0 bg-[#252538] border border-white/5 rounded-lg p-1 text-[11px] text-[#f0ece4] outline-none"
             >
-              <option value="4">4 Seconds</option>
-              <option value="5">5 Seconds</option>
-              <option value="8">8 Seconds</option>
-              <option value="10">10 Seconds</option>
-              <option value="15">15 Seconds</option>
+              {(MODEL_REGISTRY[videoEngine]?.durations || [4, 5, 8, 10, 15]).map(d => (
+                <option key={d} value={d}>{d} Seconds</option>
+              ))}
             </select>
           </div>
 

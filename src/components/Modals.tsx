@@ -358,10 +358,9 @@ const APIKeysModal = ({ Overlay, onClose, keys, onSaveKeys, storageSizeMB, onCle
     setFetchingModels(true);
     setFetchError(null);
     try {
-      const res = await fetch('https://api.x.ai/v1/models', {
+      const res = await fetch('/api/proxy/xai/v1/models', { credentials: 'include',
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localKeys.apiKey}`,
           'Accept': 'application/json'
         }
       });

@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 border-b border-white/5 flex items-center justify-between gap-2">
           <div className="flex flex-col">
             <span className="font-serif font-semibold text-lg text-[#c9b8e8] tracking-wide flex items-center gap-1.5">
-              ✦ Zaor Studio <span className="font-sans text-[10px] text-white/40 font-normal">v1.60</span>
+              ✦ Zaor Studio <span className="font-sans text-[10px] text-white/40 font-normal">v1.63</span>
             </span>
           </div>
 

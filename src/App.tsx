@@ -20,26 +20,25 @@ import {
   DIRECTOR_SYSTEM,
   directorModelGuide
 } from './data';
+import { loadThreadsIDB, saveThreadsIDB, clearThreadsIDB } from './storage';
 import {
   Sparkles, Menu, ShieldAlert, Key, Library, Dna, Settings, Users,
   BookOpen, Save, Cpu, RefreshCw, X, Check, HelpCircle, Trash2
 } from 'lucide-react';
 
-const safeLocalStorageSet = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch (err: any) {
-    console.warn("Storage limit exceeded for key:", key, err.message);
-    if (key === 'gs_threads') {
-      alert("Local storage limit exceeded. Your latest content could not be saved persistently. Please free up space by deleting older chats or media.");
-    }
-  }
-};
-
 export default function App() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    fetch('/api/auth/status', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.authenticated) setIsUnlocked(true);
+      })
+      .catch(console.error);
+  }, []);
 
   // Api Keys & Local Storage credentials
   const [keys, setKeys] = useState(() => {
@@ -101,7 +100,7 @@ export default function App() {
   const [imageSteps, setImageSteps] = useState<number>(28);
   const [imageGuidance, setImageGuidance] = useState<number>(3.5);
 
-  const [videoEngine, setVideoEngine] = useState<string>('aurora');
+  const [videoEngine, setVideoEngine] = useState<string>('aurora-t2v');
   const [videoDur, setVideoDur] = useState<number>(4);
   const [videoRes, setVideoRes] = useState<string>('480p');
   const [videoRatio, setVideoRatio] = useState<string>('16:9');
@@ -134,39 +133,40 @@ export default function App() {
   // Cost estimates string
   const [costStr, setCostStr] = useState<string>('');
 
-  // 1. Initial Load from LocalStorage
+  // 1. Initial Load from LocalStorage / IDB
   useEffect(() => {
     // Threads
-    try {
-      const storedRaw = localStorage.getItem('gs_threads');
-      const stored = storedRaw && storedRaw !== 'null' && storedRaw !== 'undefined' ? JSON.parse(storedRaw) : [];
-      if (Array.isArray(stored) && stored.length > 0) {
-        const patched = stored.map(t => ({
-          ...t,
-          messages: Array.isArray(t.messages) ? t.messages : [],
-          history: Array.isArray(t.history) ? t.history : [],
-          cast: Array.isArray(t.cast) ? t.cast : [],
-          setup: t.setup || {}
-        }));
-        setThreads(patched);
-        setCurrentThreadId(patched[0].id);
-      } else {
-        // Build fresh default game thread
-        const defaultTh: Thread = {
-          id: 'th_' + Date.now(),
-          name: 'New Game Scene',
-          createdAt: Date.now(),
-          messages: [],
-          history: [],
-          cast: []
-        };
-        localStorage.setItem('gs_threads', JSON.stringify([defaultTh]));
-        setThreads([defaultTh]);
-        setCurrentThreadId(defaultTh.id);
+    const loadThreads = async () => {
+      try {
+        const stored = await loadThreadsIDB();
+        if (stored && Array.isArray(stored) && stored.length > 0) {
+          const patched = stored.map(t => ({
+            ...t,
+            messages: Array.isArray(t.messages) ? t.messages : [],
+            history: Array.isArray(t.history) ? t.history : [],
+            cast: Array.isArray(t.cast) ? t.cast : [],
+            setup: t.setup || {}
+          }));
+          setThreads(patched);
+          setCurrentThreadId(patched[0].id);
+        } else {
+          const defaultTh: Thread = {
+            id: 'th_' + Date.now(),
+            name: 'New Game Scene',
+            createdAt: Date.now(),
+            messages: [],
+            history: [],
+            cast: []
+          };
+          await saveThreadsIDB([defaultTh]);
+          setThreads([defaultTh]);
+          setCurrentThreadId(defaultTh.id);
+        }
+      } catch (e) {
+        console.error('Thread loading error:', e);
       }
-    } catch {
-      /* fallback blank reset */
-    }
+    };
+    loadThreads();
 
     // Style Lock
     try {
@@ -314,7 +314,7 @@ export default function App() {
   // Active threads lists update helper
   const updateThreadsList = (updatedList: Thread[]) => {
     setThreads(updatedList);
-    safeLocalStorageSet('gs_threads', JSON.stringify(updatedList));
+    saveThreadsIDB(updatedList);
     recalcStorageSize();
   };
 
@@ -330,7 +330,7 @@ export default function App() {
       
       // Defer side-effects so React updater remains pure
       setTimeout(() => {
-        safeLocalStorageSet('gs_threads', JSON.stringify(newList));
+        saveThreadsIDB(newList);
         recalcStorageSize();
       }, 0);
       
@@ -365,13 +365,7 @@ export default function App() {
        setCostStr(`$${(costPer * imageCount).toFixed(3)}`);
      } else if (mode === 'video') {
        const entry = MODEL_REGISTRY[videoEngine];
-       const hi = videoRes === '720p';
-       let rate = 0.05;
-       if (entry && entry.pricePerS != null) rate = entry.pricePerS;
-       else if (videoEngine === 'seedance15t2v' || videoEngine === 'seedance15-t2v') rate = hi ? 0.02 : 0.009;
-       else if (videoEngine === 'wan26t2v' || videoEngine === 'wan26-t2v') rate = 0.068;
-       else if (videoEngine === 'wan22spicy' || videoEngine === 'wan22-spicy') rate = 0.15;
-       else if (videoEngine === 'wan26spicy' || videoEngine === 'wan26-spicy') rate = 0.10;
+       const rate = entry ? (entry.pricePerS || entry.price || 0.05) : 0.05;
        setCostStr(`~$${(rate * videoDur).toFixed(2)}`);
      } else if (mode === 'edit') {
        const entry = MODEL_REGISTRY[editModel];
@@ -407,8 +401,8 @@ export default function App() {
     alert('Heavy binary images stripped from local campaign logs. Conversation texts saved!');
   };
 
-  const handleClearAllChats = () => {
-    localStorage.removeItem('gs_threads');
+  const handleClearAllChats = async () => {
+    await clearThreadsIDB();
     const defaultTh: Thread = {
       id: 'th_' + Date.now(),
       name: 'New Game Scene',
@@ -541,9 +535,9 @@ export default function App() {
       }
     }
 
-    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    const res = await fetch('/api/proxy/xai/v1/chat/completions', { credentials: 'include',
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: keys.chatModel || 'grok-2-latest',
         messages: messagesPayload,
@@ -709,13 +703,13 @@ export default function App() {
   const executeVideoGen = async (
     promptText: string,
     imgContext: string | null = null,
-    engineId: string = 'aurora',
+    engineId: string = 'aurora-t2v',
     prevVideo: string | null = null,
     customDur: number | null = null,
     customRes: string | null = null
   ) => {
     // WaveSpeed video engines polling or Grok extensions
-    const actualEngine = engineId || videoEngine || 'aurora';
+    const actualEngine = engineId || videoEngine || 'aurora-t2v';
     const durRaw = customDur || videoDur;
     const resolution = customRes || videoRes;
 
@@ -723,12 +717,7 @@ export default function App() {
     let pollingUrl = '';
     let extractFn: (data: any) => string | null = () => null;
 
-    const normalizedVideoEngine = actualEngine === 'aurora' ? 'aurora-t2v'
-      : actualEngine === 'seedance15t2v' ? 'seedance15-t2v'
-      : actualEngine === 'wan26t2v' ? 'wan26-t2v'
-      : actualEngine;
-
-    const m = MODEL_REGISTRY[normalizedVideoEngine];
+    const m = MODEL_REGISTRY[actualEngine];
     if (m?.provider === 'atlas') {
       if (!keys.atlasKey) throw new Error('Atlas Cloud Key required.');
       const finalSrc = imgContext && imgContext.startsWith('data:')
@@ -745,12 +734,9 @@ export default function App() {
         aspectRatio: videoRatio
       });
 
-      const res = await fetch('https://api.atlascloud.ai/api/v1/model/generateImage', {
+      const res = await fetch('/api/proxy/atlas/api/v1/model/generateImage', { credentials: 'include',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${keys.atlasKey}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: m.path,
           ...atlasBody
@@ -789,32 +775,24 @@ export default function App() {
       return;
     }
 
-    if (actualEngine.includes('aurora') && actualEngine !== 'aurora-extend') {
+    if (m?.provider === 'xai-video') {
       if (!keys.apiKey) throw new Error('xAI Keystore key is missing');
-      let xaiBody: any;
-      let endpoint = 'https://api.x.ai/v1/videos/generations';
-
-      if (prevVideo) {
-        endpoint = 'https://api.x.ai/v1/videos/extensions';
-        xaiBody = {
-          model: 'grok-imagine-video',
+      let endpoint = prevVideo ? '/api/proxy/xai/v1/videos/extensions' : '/api/proxy/xai/v1/videos/generations';
+      const xaiBody = {
+        model: m.path,
+        ...m.buildBody({
           prompt: promptText,
-          video: { url: prevVideo }
-        };
-      } else {
-        xaiBody = {
-          model: 'grok-imagine-video',
-          prompt: promptText,
-          duration: durRaw,
+          image: imgContext || undefined,
+          video: prevVideo || undefined,
           resolution,
-          image: imgContext ? { url: imgContext } : undefined,
-          aspect_ratio: imgContext ? undefined : videoRatio
-        };
-      }
+          duration: durRaw,
+          aspectRatio: videoRatio
+        })
+      };
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(endpoint, { credentials: 'include',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(xaiBody)
       });
 
@@ -845,7 +823,7 @@ export default function App() {
         throw new Error(`xAI failed to dispatch reference parameters ID. Response: ${JSON.stringify(resData).slice(0, 50)}`);
       }
 
-      pollingUrl = requestId ? `https://api.x.ai/v1/videos/${requestId}` : '';
+      pollingUrl = requestId ? `/api/proxy/xai/v1/videos/${requestId}` : '';
       extractFn = d => {
         if (syncUrl) return syncUrl;
         const s = String(d.status || d.state || '').toLowerCase();
@@ -876,48 +854,12 @@ export default function App() {
           aspectRatio: videoRatio
         });
       } else {
-        // Fallback for missing registry definition
-        if (prevVideo) {
-          if (actualEngine === 'wan22spicy-extend' || actualEngine === 'wan22spicy') {
-            path = 'wavespeed-ai/wan-2.2-spicy/video-extend';
-            body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
-          } else {
-            path = 'alibaba/wan-2.7/video-extend';
-            body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
-          }
-        } else if (imgContext) {
-          path = actualEngine === 'seedance15spicy'
-            ? 'bytedance/seedance-v1.5-pro/image-to-video-spicy'
-            : actualEngine === 'ltx23spicy'
-            ? 'wavespeed-ai/ltx-2.3-spicy/image-to-video'
-            : 'wavespeed-ai/wan-2.2-spicy/image-to-video';
-  
-          body = {
-            prompt: promptText,
-            image: imgContext,
-            resolution,
-            duration: durRaw,
-            aspect_ratio: videoRatio,
-            seed: -1
-          };
-        } else {
-          path = actualEngine === 'seedance15t2v'
-            ? 'bytedance/seedance-v1.5-pro/text-to-video'
-            : 'alibaba/wan-2.6/text-to-video';
-  
-          body = {
-            prompt: promptText,
-            resolution,
-            aspect_ratio: videoRatio,
-            duration: durRaw,
-            seed: -1
-          };
-        }
+        throw new Error(`Unsupported model or missing registry definition: ${actualEngine}`);
       }
 
-      const res = await fetch(`https://api.wavespeed.ai/api/v3/${path}`, {
+      const res = await fetch(`/api/proxy/wavespeed/api/v3/${path}`, { credentials: 'include',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.wavespeedKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
@@ -930,7 +872,7 @@ export default function App() {
       taskId = resData.data?.id || resData.id;
       if (!taskId) throw new Error('taskId retrieval failed');
 
-      pollingUrl = `https://api.wavespeed.ai/api/v3/predictions/${taskId}/result`;
+      pollingUrl = `/api/proxy/wavespeed/api/v3/predictions/${taskId}/result`;
       extractFn = d => {
         const s = d.data?.status || d.status;
         if (s === 'completed') return d.data?.outputs?.[0] || d.outputs?.[0] || null;
@@ -941,7 +883,7 @@ export default function App() {
 
     // Support synchronous success 
     let syncOutUrl = null;
-    if (actualEngine.includes('aurora') && !pollingUrl) {
+    if (m?.provider === 'xai-video' && !pollingUrl) {
        syncOutUrl = extractFn({}); 
     }
 
@@ -952,11 +894,9 @@ export default function App() {
       await new Promise(r => setTimeout(r, 5000));
       loops++;
 
-      const pHeaders = actualEngine.includes('aurora')
-        ? { Authorization: `Bearer ${keys.apiKey}` }
-        : { Authorization: `Bearer ${keys.wavespeedKey}` };
+      const pHeaders = {};
 
-      const check = await fetch(pollingUrl, { headers: pHeaders }).catch(() => null);
+      const check = await fetch(pollingUrl, { credentials: 'include', headers: pHeaders }).catch(() => null);
       if (!check) continue;
       if (!check.ok) {
         if (check.status === 401 || check.status === 403 || check.status === 404) {
@@ -984,10 +924,7 @@ export default function App() {
         type: 'video',
         src: syncOutUrl,
         alt: promptText,
-        engineLabel: actualEngine.includes('aurora') ? (prevVideo ? 'Aurora Extend' : 'Aurora T2V')
-          : actualEngine.includes('wan27') ? 'WaveSpeed Wan 2.7'
-          : actualEngine.includes('wan22') ? 'WaveSpeed Wan 2.2'
-          : 'Video',
+        engineLabel: m?.label ? m.label.split('·')[0].split('[')[0].trim() : 'Video',
         storedDuration: durRaw,
         storedRes: resolution
       };
@@ -1025,9 +962,9 @@ export default function App() {
 
       const contentPrompt = `Beat Context Turn:\nUser: ${userBeat}\nStory: ${aiStoryReply}${castKnownStr}`;
 
-      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      const res = await fetch('/api/proxy/xai/v1/chat/completions', { credentials: 'include',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: keys.chatModel || 'grok-2-latest',
           messages: [
@@ -1352,9 +1289,9 @@ export default function App() {
 
       const cleanHist = activeThread.history.map(h => ({ role: h.role, content: h.content }));
 
-      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      const res = await fetch('/api/proxy/xai/v1/chat/completions', { credentials: 'include',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: keys.chatModel || 'grok-2-latest',
           messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
@@ -1426,9 +1363,9 @@ export default function App() {
         max_tokens = 25;
       }
 
-      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      const res = await fetch('/api/proxy/xai/v1/chat/completions', { credentials: 'include',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: keys.chatModel || 'grok-2-latest',
           messages: [
@@ -1544,17 +1481,6 @@ export default function App() {
     }
     setDeleteId(null);
   };
-
-  // Re-locks pins on tab hide
-  useEffect(() => {
-    const lockOnBG = () => {
-      if (document.visibilityState === 'hidden') {
-        sessionStorage.removeItem('gs_unlocked');
-      }
-    };
-    document.addEventListener('visibilitychange', lockOnBG);
-    return () => document.removeEventListener('visibilitychange', lockOnBG);
-  }, []);
 
   // Upload hooks trigger file clicker
   const handleRegisterUpload = () => {
@@ -1895,10 +1821,7 @@ export default function App() {
                     onClick={() => {
                       if(window.confirm("Are you sure you want to nuke the session? This will delete all threads, messages, and casts, but keep your API keys and LoRA settings.")) {
                         setOverflowMenuOpen(false);
-                        setThreads([]);
-                        setCurrentThreadId(null);
-                        localStorage.setItem('zaor_threads', '[]');
-                        localStorage.removeItem('zaor_active_thread');
+                        handleClearAllChats();
                       }
                     }}
                     className="w-full text-left p-2.5 rounded-lg text-xs font-medium text-red-400 hover:bg-neutral-800/10 border-t border-white/5 transition-colors flex items-center gap-2 cursor-pointer"
