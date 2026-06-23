@@ -706,6 +706,8 @@ const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, p
                 <option value="aurora-extend">Aurora Extend &middot; xAI — $0.05/s</option>
                 <option value="wan27-extend">Wan 2.7 Extend — $0.30/s</option>
                 <option value="wan22spicy-extend">Wan 2.2 Spicy — $0.15/s</option>
+                <option value="grok-vedit">Aurora Video Edit — $0.10/s</option>
+                <option value="atlas-wan27-vedit">Wan 2.7 Video Edit (Atlas) — $0.05/s</option>
               </select>
 
               <span className="text-[10px] text-[#9a96a8] uppercase font-bold">Duration:</span>
@@ -719,13 +721,17 @@ const VideoMessageCard = ({ m, onCloud, onSave, onGrabLast, onRetryVid, onPin, p
                 <option value="10">10s</option>
               </select>
 
+              <span className="text-[10px] text-[#9a96a8] bg-[#252538] border border-white/5 px-2 py-0.5 rounded-md font-semibold tracking-wider ml-auto">
+                ~${(extDur * ((extEngine || '').includes('wan27') ? ((extEngine || '').includes('vedit') ? 0.05 : 0.30) : (extEngine || '').includes('wan22') ? 0.15 : extEngine === 'grok-vedit' ? 0.10 : 0.05)).toFixed(2)}
+              </span>
+
               <button
                 disabled={isLoading}
                 onClick={() => {
                   onRetryVid(extPrompt || 'continue scene naturally', extEngine, extDur, extRes, m.src);
                   setExtendOpen(false);
                 }}
-                className={`bg-[#64b4ff] hover:bg-[#64b4ff]/90 text-[#1a1a2e] px-4 py-1 rounded-full text-[11px] font-bold ml-auto cursor-pointer ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-[#64b4ff] hover:bg-[#64b4ff]/90 text-[#1a1a2e] px-4 py-1 rounded-full text-[11px] font-bold ml-2 cursor-pointer ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Extend Clip ▶
               </button>

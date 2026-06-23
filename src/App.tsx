@@ -44,9 +44,9 @@ export default function App() {
   // Api Keys & Local Storage credentials
   const [keys, setKeys] = useState(() => {
     let chatStr = resolveKey('xai_chat_model', import.meta.env.VITE_XAI_CHAT_MODEL || 'grok-2-1212');
-    if (chatStr === 'grok-beta' || chatStr === 'grok-2-latest') {
+    if (chatStr === 'grok-beta' || chatStr === 'grok-2-latest' || chatStr === 'grok-2') {
        chatStr = 'grok-2-1212';
-       localStorage.setItem('xai_chat_model', 'grok-2-1212');
+       try { localStorage.setItem('xai_chat_model', 'grok-2-1212'); } catch(e) {}
     }
     return {
       apiKey: resolveKey('xai_key', import.meta.env.VITE_XAI_KEY || ''),
@@ -81,7 +81,7 @@ export default function App() {
   const [lockedStyle, setLockedStyle] = useState<string>('');
 
   useEffect(() => {
-    if (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') {
+    if (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest' || keys.chatModel === 'grok-2') {
       setKeys(k => ({ ...k, chatModel: 'grok-2-1212' }));
       try { localStorage.setItem('xai_chat_model', 'grok-2-1212'); } catch (err) {}
     }
@@ -138,10 +138,18 @@ export default function App() {
   useEffect(() => {
     // Threads
     try {
-      const stored = JSON.parse(localStorage.getItem('gs_threads') || '[]');
-      setThreads(stored);
-      if (stored.length > 0) {
-        setCurrentThreadId(stored[0].id);
+      const storedRaw = localStorage.getItem('gs_threads');
+      const stored = storedRaw && storedRaw !== 'null' && storedRaw !== 'undefined' ? JSON.parse(storedRaw) : [];
+      if (Array.isArray(stored) && stored.length > 0) {
+        const patched = stored.map(t => ({
+          ...t,
+          messages: Array.isArray(t.messages) ? t.messages : [],
+          history: Array.isArray(t.history) ? t.history : [],
+          cast: Array.isArray(t.cast) ? t.cast : [],
+          setup: t.setup || {}
+        }));
+        setThreads(patched);
+        setCurrentThreadId(patched[0].id);
       } else {
         // Build fresh default game thread
         const defaultTh: Thread = {
@@ -161,15 +169,22 @@ export default function App() {
     }
 
     // Style Lock
-    const sActive = localStorage.getItem('zaor_style_active') === '1';
-    setStyleLockActive(sActive);
-    setLockedStyle(localStorage.getItem('zaor_style_lock') || '');
+    try {
+      const sActive = localStorage.getItem('zaor_style_active') === '1';
+      setStyleLockActive(sActive);
+      setLockedStyle(localStorage.getItem('zaor_style_lock') || '');
+    } catch {
+      setStyleLockActive(false);
+      setLockedStyle('');
+    }
 
     // Storyboard
-    setStoryboardOn(localStorage.getItem('zaor_sb_on') === '1');
-    setStoryboardModel(localStorage.getItem('zaor_sb_model') || 'chroma');
-    setStoryboardRatio(localStorage.getItem('zaor_sb_ratio') || '16:9');
-    setStoryParaLimit(parseInt(localStorage.getItem('zaor_sb_para') || '2', 10));
+    try {
+      setStoryboardOn(localStorage.getItem('zaor_sb_on') === '1');
+      setStoryboardModel(localStorage.getItem('zaor_sb_model') || 'chroma');
+      setStoryboardRatio(localStorage.getItem('zaor_sb_ratio') || '16:9');
+      setStoryParaLimit(parseInt(localStorage.getItem('zaor_sb_para') || '2', 10));
+    } catch {}
 
     // LoRAs
     try {
@@ -186,20 +201,22 @@ export default function App() {
 
       const storedStr = localStorage.getItem('zaor_loras');
       let loadedLoras: any[] = [];
-      if (storedStr) {
-        loadedLoras = JSON.parse(storedStr);
-        loadedLoras = loadedLoras.map(l => {
-          let updated = { ...l };
-          if (updated.base === 'Klein') updated.base = 'Flux2-Klein';
-          // Fix cached dummy URLs
-          if (updated.url === 'https://civitai.com/api/download/models/1234567') {
-            updated.url = 'https://civitai.com/api/download/models/2545735';
-          }
-          if (updated.url === 'https://civitai.com/api/download/models/8765432') {
-            updated.url = 'https://civitai.com/api/download/models/2541753';
-          }
-          return updated;
-        });
+      if (storedStr && storedStr !== 'null' && storedStr !== 'undefined') {
+        const parsed = JSON.parse(storedStr);
+        if (Array.isArray(parsed)) {
+          loadedLoras = parsed.map(l => {
+            let updated = { ...l };
+            if (updated.base === 'Klein') updated.base = 'Flux2-Klein';
+            // Fix cached dummy URLs
+            if (updated.url === 'https://civitai.com/api/download/models/1234567') {
+              updated.url = 'https://civitai.com/api/download/models/2545735';
+            }
+            if (updated.url === 'https://civitai.com/api/download/models/8765432') {
+              updated.url = 'https://civitai.com/api/download/models/2541753';
+            }
+            return updated;
+          });
+        }
       } else {
         const envLoras: LoRA[] = [];
         const lora1Url = import.meta.env.VITE_LORA_1_URL;
@@ -347,9 +364,11 @@ export default function App() {
        const costPer = entry ? entry.price || 0.02 : 0.02;
        setCostStr(`$${(costPer * imageCount).toFixed(3)}`);
      } else if (mode === 'video') {
+       const entry = MODEL_REGISTRY[videoEngine];
        const hi = videoRes === '720p';
        let rate = 0.05;
-       if (videoEngine === 'seedance15t2v' || videoEngine === 'seedance15-t2v') rate = hi ? 0.02 : 0.009;
+       if (entry && entry.pricePerS != null) rate = entry.pricePerS;
+       else if (videoEngine === 'seedance15t2v' || videoEngine === 'seedance15-t2v') rate = hi ? 0.02 : 0.009;
        else if (videoEngine === 'wan26t2v' || videoEngine === 'wan26-t2v') rate = 0.068;
        else if (videoEngine === 'wan22spicy' || videoEngine === 'wan22-spicy') rate = 0.15;
        else if (videoEngine === 'wan26spicy' || videoEngine === 'wan26-spicy') rate = 0.10;
@@ -479,7 +498,7 @@ export default function App() {
       ? sysPromptBase + `\n\nCRITICAL RULE: For pacing, limit your narration replies to a MAXIMUM of ${storyParaLimit} paragraphs. Do not write huge walls of text.`
       : sysPromptBase;
 
-    const historyPayload = activeThread.history.map(h => ({
+    const historyPayload = activeThread.history.slice(-3).map(h => ({
       role: h.role,
       content: typeof h.content === 'string' ? h.content : JSON.stringify(h.content)
     }));
@@ -511,7 +530,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
       body: JSON.stringify({
-        model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+        model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
         messages: messagesPayload,
         max_tokens: 2048
       })
@@ -681,7 +700,7 @@ export default function App() {
     customRes: string | null = null
   ) => {
     // WaveSpeed video engines polling or Grok extensions
-    const actualEngine = engineId || videoEngine;
+    const actualEngine = engineId || videoEngine || 'aurora';
     const durRaw = customDur || videoDur;
     const resolution = customRes || videoRes;
 
@@ -704,7 +723,8 @@ export default function App() {
       // Build body using registry
       const atlasBody = m.buildBody({
         prompt: promptText,
-        image: finalSrc,
+        image: finalSrc || undefined,
+        video: prevVideo || undefined,
         duration: durRaw,
         resolution,
         aspectRatio: videoRatio
@@ -754,7 +774,7 @@ export default function App() {
       return;
     }
 
-    if (actualEngine.includes('aurora')) {
+    if (actualEngine.includes('aurora') && actualEngine !== 'aurora-extend') {
       if (!keys.apiKey) throw new Error('xAI Keystore key is missing');
       let xaiBody: any;
       let endpoint = 'https://api.x.ai/v1/videos/generations';
@@ -825,46 +845,59 @@ export default function App() {
         return null;
       };
     } else {
-      // WaveSpeed WAN
+      // WaveSpeed WAN & Extended Edits
       if (!keys.wavespeedKey) throw new Error('WaveSpeed Credentials Key required.');
       let body: any;
       let path = '';
 
-      if (prevVideo) {
-        if (actualEngine === 'wan22spicy-extend' || actualEngine === 'wan22spicy') {
-          path = 'wavespeed-ai/wan-2.2-spicy/video-extend';
-          body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
-        } else {
-          path = 'alibaba/wan-2.7/video-extend';
-          body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
-        }
-      } else if (imgContext) {
-        path = actualEngine === 'seedance15spicy'
-          ? 'bytedance/seedance-v1.5-pro/image-to-video-spicy'
-          : actualEngine === 'ltx23spicy'
-          ? 'wavespeed-ai/ltx-2.3-spicy/image-to-video'
-          : 'wavespeed-ai/wan-2.2-spicy/image-to-video';
-
-        body = {
+      if (m && m.provider === 'wavespeed') {
+        path = m.path;
+        body = m.buildBody({
           prompt: promptText,
-          image: imgContext,
+          image: imgContext || undefined,
+          video: prevVideo || undefined,
           resolution,
           duration: durRaw,
-          aspect_ratio: videoRatio,
-          seed: -1
-        };
+          aspectRatio: videoRatio
+        });
       } else {
-        path = actualEngine === 'seedance15t2v'
-          ? 'bytedance/seedance-v1.5-pro/text-to-video'
-          : 'alibaba/wan-2.6/text-to-video';
-
-        body = {
-          prompt: promptText,
-          resolution,
-          aspect_ratio: videoRatio,
-          duration: durRaw,
-          seed: -1
-        };
+        // Fallback for missing registry definition
+        if (prevVideo) {
+          if (actualEngine === 'wan22spicy-extend' || actualEngine === 'wan22spicy') {
+            path = 'wavespeed-ai/wan-2.2-spicy/video-extend';
+            body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
+          } else {
+            path = 'alibaba/wan-2.7/video-extend';
+            body = { prompt: promptText, video: prevVideo, resolution, duration: durRaw, seed: -1 };
+          }
+        } else if (imgContext) {
+          path = actualEngine === 'seedance15spicy'
+            ? 'bytedance/seedance-v1.5-pro/image-to-video-spicy'
+            : actualEngine === 'ltx23spicy'
+            ? 'wavespeed-ai/ltx-2.3-spicy/image-to-video'
+            : 'wavespeed-ai/wan-2.2-spicy/image-to-video';
+  
+          body = {
+            prompt: promptText,
+            image: imgContext,
+            resolution,
+            duration: durRaw,
+            aspect_ratio: videoRatio,
+            seed: -1
+          };
+        } else {
+          path = actualEngine === 'seedance15t2v'
+            ? 'bytedance/seedance-v1.5-pro/text-to-video'
+            : 'alibaba/wan-2.6/text-to-video';
+  
+          body = {
+            prompt: promptText,
+            resolution,
+            aspect_ratio: videoRatio,
+            duration: durRaw,
+            seed: -1
+          };
+        }
       }
 
       const res = await fetch(`https://api.wavespeed.ai/api/v3/${path}`, {
@@ -981,7 +1014,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: contentPrompt }
@@ -1308,7 +1341,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [{ role: 'system', content: sysPrompt }, ...cleanHist, { role: 'user', content: 'Output finalized BEST prompt immediately.' }],
           temperature: 0.6,
           max_tokens: 500
@@ -1382,7 +1415,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keys.apiKey}` },
         body: JSON.stringify({
-          model: (keys.chatModel === 'grok-beta' || keys.chatModel === 'grok-2-latest') ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
+          model: ['grok-beta', 'grok-2-latest', 'grok-2'].includes(keys.chatModel) ? 'grok-2-1212' : (keys.chatModel || 'grok-2-1212'),
           messages: [
             { role: 'system', content: sys },
             { role: 'user', content: prompt }
@@ -1772,17 +1805,29 @@ export default function App() {
             </button>
 
             {/* Quick Storyboard Toggles Direct Access */}
-            <button
-              onClick={() => {
-                setActiveModal('storyboard');
-              }}
-              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                storyboardOn ? 'bg-[#c9b8e8]/10 border-[#c9b8e8]/20 text-[#c9b8e8]' : 'bg-[#252538] border-white/5 text-[#9a96a8] hover:text-white'
-              }`}
-              title="Storyboard director trigger state settings"
-            >
-              🎬
-            </button>
+            <div className="flex items-center rounded-lg border border-white/5 bg-[#252538] overflow-hidden">
+              <button
+                onClick={() => {
+                  const newVal = !storyboardOn;
+                  setStoryboardOn(newVal);
+                  localStorage.setItem('zaor_sb_on', newVal ? '1' : '0');
+                }}
+                className={`p-1.5 transition-colors cursor-pointer ${
+                  storyboardOn ? 'bg-[#c9b8e8]/20 text-[#c9b8e8]' : 'text-[#9a96a8] hover:text-[#f0ece4]'
+                }`}
+                title="Toggle Storyboard Director"
+              >
+                🎬
+              </button>
+              <div className="w-[1px] h-4 bg-white/10" />
+              <button
+                onClick={() => setActiveModal('storyboard')}
+                className="p-1.5 text-[#9a96a8] hover:text-[#f0ece4] hover:bg-[#2e2e48] transition-colors cursor-pointer"
+                title="Storyboard Director Settings"
+              >
+                <Settings size={13} />
+              </button>
+            </div>
 
             {/* Overflow Expansion Options trigger */}
             <div className="relative">
