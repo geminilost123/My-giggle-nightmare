@@ -546,7 +546,12 @@ export default function App() {
 
     // Apply any active/matching parameters & trigger words injection
     const activeLorasList = loras.filter(l => l.active);
-    const hasMismatch = activeLorasList.some(l => l.base && l.base !== 'Other' && l.base !== registryEntry.loraBase);
+    const hasMismatch = activeLorasList.some(l => {
+      if (!l.base || l.base === 'Other' || !registryEntry.loraBase) return false;
+      if (registryEntry.loraBase === 'Z-Image' && l.base === 'Flux') return false;
+      if (registryEntry.loraBase === 'Flux' && l.base === 'Z-Image') return false;
+      return l.base !== registryEntry.loraBase;
+    });
     if (hasMismatch) {
       setTimeout(() => alert("Warning: Model / LoRA mismatch. Expect unexpected results or API errors."), 10);
     }
@@ -1029,7 +1034,12 @@ export default function App() {
       // Assemble active LoRA details
       const activeLorasList = loras.filter(l => l.active);
       const sbModelBase = MODEL_REGISTRY[storyboardModel]?.loraBase || '';
-      const hasMismatch = activeLorasList.some(l => l.base && l.base !== 'Other' && l.base !== sbModelBase);
+      const hasMismatch = activeLorasList.some(l => {
+        if (!l.base || l.base === 'Other' || !sbModelBase) return false;
+        if (sbModelBase === 'Z-Image' && l.base === 'Flux') return false;
+        if (sbModelBase === 'Flux' && l.base === 'Z-Image') return false;
+        return l.base !== sbModelBase;
+      });
       if (hasMismatch) {
         console.warn("Storyboard Model / LoRA mismatch detected.");
       }

@@ -199,8 +199,13 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     path: 'black-forest-labs/flux-dev',
     price: 0.01,
     verified: true,
+    lora: true,
+    loraBase: 'Flux',
     buildBody: p => {
       const b: any = { prompt: p.prompt, num_images: 1, enable_safety_checker: false };
+      if (p.loras && p.loras.length) {
+        b.loras = p.loras.slice(0, 3).map(l => ({ path: l.path, scale: Number(l.scale) || 1 }));
+      }
       if (p.imageReference) b.image_reference = { image: p.imageReference, weight: 0.85 };
       return b;
     }
