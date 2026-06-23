@@ -179,13 +179,16 @@ export default function App() {
         { id: 90003, name: 'Z-IMAGE ANIME - ILL', url: 'https://civitai.com/api/download/models/2463859', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'High-contrast digital illustration', active: false },
         { id: 90004, name: 'Milo Manara', url: 'https://civitai.com/api/download/models/2545735', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Comic-book ink and color style', active: false },
         { id: 90005, name: 'samdoearts', url: 'https://civitai.com/api/download/models/2541753', trigger: '', base: 'Z-Image', category: 'style', scale: 0.85, notes: 'Semi-realistic 3D-cartoon digital painting', active: false },
-        { id: 90006, name: 'SNOFS (Klein 9B)', url: 'https://civitai.red/api/download/models/2960556?fileId=2839878', trigger: '', base: 'Klein', category: 'realism', scale: 0.85, notes: 'NSFW Training - High flexibility', active: false }
+        { id: 90006, name: 'SNOFS (Klein 9B)', url: 'https://civitai.red/api/download/models/2960556?fileId=2839878', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'NSFW Training - High flexibility', active: false },
+        { id: 90007, name: 'Lenovo styles real', url: 'https://civitai.com/api/download/models/1234567', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Highly realistic details for Klein', active: false },
+        { id: 90008, name: 'Anatomy detail fix', url: 'https://civitai.com/api/download/models/8765432', trigger: '', base: 'Flux2-Klein', category: 'realism', scale: 0.85, notes: 'Improves body proportions and anatomical details', active: false }
       ];
 
       const storedStr = localStorage.getItem('zaor_loras');
       let loadedLoras: any[] = [];
       if (storedStr) {
         loadedLoras = JSON.parse(storedStr);
+        loadedLoras = loadedLoras.map(l => l.base === 'Klein' ? { ...l, base: 'Flux2-Klein' } : l);
       } else {
         const envLoras: LoRA[] = [];
         const lora1Url = import.meta.env.VITE_LORA_1_URL;
